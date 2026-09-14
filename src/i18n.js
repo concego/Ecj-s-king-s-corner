@@ -66,7 +66,7 @@ export const translations = {
     victory: 'Você venceu! Todas as cartas da sua mão foram jogadas.',
     blocked: 'Não há mais jogadas disponíveis. Tente novamente.',
     gameSaved: 'A partida foi salva neste dispositivo.',
-    instructions: 'Selecione uma carta e depois uma pilha de destino. Use as setas para navegar, Enter para selecionar e Escape para cancelar.'
+    instructions: 'Selecione uma carta e depois uma pilha de destino. Use as setas para navegar, Enter para selecionar e Escape para cancelar.',
     cardLabel: (rank, suit, color, position) => `${rank} de ${suit}, ${color}${position ? `, ${position}` : ''}`,
     stockLabel: (n) => `Monte de compra, ${n} carta${n === 1 ? '' : 's'}`,
     pileLabel: (name, top, count) => `${name}, ${count} carta${count === 1 ? '' : 's'}${top ? `, carta do topo: ${top}` : ', vazia'}`,
@@ -138,7 +138,7 @@ export const translations = {
     victory: 'You won! All cards from your hand have been played.',
     blocked: 'There are no more available moves. Try again.',
     gameSaved: 'The game was saved on this device.',
-    instructions: 'Select a card and then a destination pile. Use the arrow keys to navigate, Enter to select and Escape to cancel.'
+    instructions: 'Select a card and then a destination pile. Use the arrow keys to navigate, Enter to select and Escape to cancel.',
     cardLabel: (rank, suit, color, position) => `${rank} of ${suit}, ${color}${position ? `, ${position}` : ''}`,
     stockLabel: (n) => `Draw pile, ${n} card${n === 1 ? '' : 's'}`,
     pileLabel: (name, top, count) => `${name}, ${count} card${count === 1 ? '' : 's'}${top ? `, top card: ${top}` : ', empty'}`,
