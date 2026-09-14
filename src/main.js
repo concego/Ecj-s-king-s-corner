@@ -4,10 +4,8 @@ import {
   RANK_BY_VALUE,
   SUIT_BY_ID,
   cardAccessibleName,
-  cardName,
   createGame,
   cloneGame,
-  destinationPile,
   moveSelected,
   drawCard,
   updateBlockedStatus,
@@ -239,9 +237,10 @@ function selectPile(zone, index) {
     const moved = moveSelected(game, selected, { zone, index });
     if (moved) {
       history.push(before);
+      const moveSound = selected?.zone === 'hand' ? 'cardPlay' : 'stackMove';
       selected = null;
       saveGame();
-      announce(t('moveMade'), 'stackMove');
+      announce(t('moveMade'), moveSound);
       if (game.status === 'won') announce(t('victory'), 'victory');
       render();
     } else {
