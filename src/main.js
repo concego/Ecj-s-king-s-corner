@@ -163,11 +163,11 @@ function renderNewGame() {
   </div>`);
 }
 
-function pileButton(zone, index, name, pile, areaClass) {
+function pileButton(zone, index, name, pile, areaClass, row, column) {
   const top = pile[pile.length - 1];
   const isSelected = selected?.zone === zone && selected?.index === index;
   const label = t('pileLabel', name, top ? cardAccessibleName(top, locale) : '', pile.length);
-  return `<button type="button" class="pile-button ${areaClass}${isSelected ? ' selected' : ''}${top ? '' : ' empty'}" data-action="select-pile" data-zone="${zone}" data-index="${index}" aria-pressed="${isSelected}" aria-label="${escapeHtml(label)}">
+  return `<button type="button" class="pile-button ${areaClass}${isSelected ? ' selected' : ''}${top ? '' : ' empty'}" data-action="select-pile" data-zone="${zone}" data-index="${index}" data-row="${row}" data-column="${column}" aria-pressed="${isSelected}" aria-label="${escapeHtml(label)}">
     ${top ? cardSvg(top) : `<span>${escapeHtml(t('emptyPile'))}</span>`}
     <span class="pile-label" aria-hidden="true">${escapeHtml(name)}</span>
   </button>`;
@@ -183,17 +183,17 @@ function renderGame() {
     return `<button type="button" class="card-button${isSelected ? ' selected' : ''}" data-action="select-hand" data-index="${index}" aria-pressed="${isSelected}" aria-label="${escapeHtml(label)}">${cardSvg(card)}</button>`;
   }).join('');
   const stockLabel = t('stockLabel', game.stock.length);
-  const stock = `<button type="button" class="pile-button area-stock" data-action="draw" aria-label="${escapeHtml(stockLabel)}" ${game.status !== 'playing' || !game.stock.length ? 'disabled' : ''}>${game.stock.length ? cardSvg(null, true) : `<span>${escapeHtml(t('emptyPile'))}</span>`}<span class="pile-label" aria-hidden="true">${escapeHtml(t('stock'))}</span></button>`;
+  const stock = `<button type="button" class="pile-button area-stock" data-action="draw" data-row="1" data-column="1" aria-label="${escapeHtml(stockLabel)}" ${game.status !== 'playing' || !game.stock.length ? 'disabled' : ''}>${game.stock.length ? cardSvg(null, true) : `<span>${escapeHtml(t('emptyPile'))}</span>`}<span class="pile-label" aria-hidden="true">${escapeHtml(t('stock'))}</span></button>`;
   const board = `<div class="board" aria-label="${escapeHtml(t('gameTitle'))}">
-    ${pileButton('corner', 0, corners[0], game.corners[0], 'area-nw')}
-    ${pileButton('foundation', 0, names[0], game.foundations[0], 'area-north')}
-    ${pileButton('corner', 1, corners[1], game.corners[1], 'area-ne')}
-    ${pileButton('foundation', 3, names[3], game.foundations[3], 'area-west')}
+    ${pileButton('corner', 0, corners[0], game.corners[0], 'area-nw', 0, 0)}
+    ${pileButton('foundation', 0, names[0], game.foundations[0], 'area-north', 0, 1)}
+    ${pileButton('corner', 1, corners[1], game.corners[1], 'area-ne', 0, 2)}
+    ${pileButton('foundation', 3, names[3], game.foundations[3], 'area-west', 1, 0)}
     ${stock}
-    ${pileButton('foundation', 1, names[1], game.foundations[1], 'area-east')}
-    ${pileButton('corner', 3, corners[3], game.corners[3], 'area-sw')}
-    ${pileButton('foundation', 2, names[2], game.foundations[2], 'area-south')}
-    ${pileButton('corner', 2, corners[2], game.corners[2], 'area-se')}
+    ${pileButton('foundation', 1, names[1], game.foundations[1], 'area-east', 1, 2)}
+    ${pileButton('corner', 3, corners[3], game.corners[3], 'area-sw', 2, 0)}
+    ${pileButton('foundation', 2, names[2], game.foundations[2], 'area-south', 2, 1)}
+    ${pileButton('corner', 2, corners[2], game.corners[2], 'area-se', 2, 2)}
   </div>`;
   app.innerHTML = `<div class="screen">
     <header class="game-header"><div><h1>${escapeHtml(t('gameTitle'))}</h1><p id="game-message" class="game-status" role="status" aria-live="polite">${escapeHtml(statusText)}</p></div><div class="inline-actions">${button(t('undo'), 'undo', 'class="secondary"')} ${button(t('newGameShort'), 'new-game', 'class="secondary"')} ${button(t('menu'), 'back-menu', 'class="secondary"')}</div></header>
@@ -205,7 +205,87 @@ function renderGame() {
   </div>`;
 }
 
+function focusableElements(group) {
+  return [...group.querySelectorAll('button:not([disabled]), a[href]')];
+}
+
+function moveFocus(group, current, direction) {
+  const items = focusableElements(group);
+  const index = items.indexOf(current);
+  if (index < 0) return null;
+  if (group.classList.contains('board')) {
+    const row = Number(current.dataset.row);
+    const column = Number(current.dataset.column);
+    const delta = { ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1] }[direction];
+    if (!delta) return null;
+    const destination = items.find((item) => Number(item.dataset.row) === row + delta[0] && Number(item.dataset.column) === column + delta[1]);
+    return destination || current;
+  }
+  const vertical = group.classList.contains('button-list') || group.classList.contains('setting-list');
+  const horizontal = group.classList.contains('inline-actions') || group.classList.contains('hand');
+  if (vertical && (direction === 'ArrowUp' || direction === 'ArrowDown')) {
+    const next = direction === 'ArrowDown' ? index + 1 : index - 1;
+    return items[(next + items.length) % items.length];
+  }
+  if (horizontal && (direction === 'ArrowLeft' || direction === 'ArrowRight')) {
+    const next = direction === 'ArrowRight' ? index + 1 : index - 1;
+    return items[(next + items.length) % items.length];
+  }
+  return null;
+}
+
+function setupArrowNavigation() {
+  const groups = app.querySelectorAll('.button-list, .setting-list, .inline-actions, .hand, .board');
+  groups.forEach((group) => {
+    const items = focusableElements(group);
+    if (!items.length) return;
+    items.forEach((item, index) => { item.tabIndex = index === 0 ? 0 : -1; });
+    group.addEventListener('keydown', (event) => {
+      const current = event.target.closest('button, a');
+      if (!current || !group.contains(current)) return;
+      const next = moveFocus(group, current, event.key);
+      if (!next || next === current) return;
+      event.preventDefault();
+      event.stopPropagation();
+      items.forEach((item) => { item.tabIndex = -1; });
+      next.tabIndex = 0;
+      next.focus({ preventScroll: true });
+      playSound('menuFocus');
+    });
+  });
+}
+
+function focusFirstControl() {
+  const first = app.querySelector('[data-action]:not([disabled])');
+  if (first) first.focus({ preventScroll: true });
+  else app.focus({ preventScroll: true });
+}
+
+function focusDescriptor(element) {
+  if (!element?.dataset?.action) return null;
+  return {
+    action: element.dataset.action,
+    locale: element.dataset.locale,
+    zone: element.dataset.zone,
+    index: element.dataset.index,
+  };
+}
+
+function restoreFocus(descriptor) {
+  if (!descriptor) return focusFirstControl();
+  const target = [...app.querySelectorAll('[data-action]')].find((element) => {
+    return element.dataset.action === descriptor.action
+      && element.dataset.locale === descriptor.locale
+      && element.dataset.zone === descriptor.zone
+      && element.dataset.index === descriptor.index
+      && !element.disabled;
+  });
+  if (target) target.focus({ preventScroll: true });
+  else focusFirstControl();
+}
+
 function render() {
+  const previousFocus = focusDescriptor(document.activeElement);
   applySettings();
   if (screen === 'language') renderLanguage();
   if (screen === 'menu') renderMenu();
@@ -214,8 +294,9 @@ function render() {
   if (screen === 'game-menu') renderGameMenu();
   if (screen === 'new-game') renderNewGame();
   if (screen === 'game') renderGame();
-  app.focus({ preventScroll: true });
   bindActions();
+  setupArrowNavigation();
+  restoreFocus(previousFocus);
 }
 
 function selectHand(index) {
