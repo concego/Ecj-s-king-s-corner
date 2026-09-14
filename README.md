@@ -37,7 +37,7 @@ O script usa apenas a biblioteca padrão do Python (`wave`, `math` e `struct`). 
 O projeto adota WCAG 2.2 AA como referência técnica. A interface inclui:
 
 - landmarks e headings semânticos;
-- foco visível e navegação por teclado;
+- foco visível e navegação principal por setas, com Tab como alternativa;
 - alternativa à interação por arrastar e soltar;
 - anúncios de estado com `aria-live`;
 - textos alternativos para cartas e pilhas;
