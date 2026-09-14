@@ -37,7 +37,10 @@ O script usa apenas a biblioteca padrão do Python (`wave`, `math` e `struct`). 
 O projeto adota WCAG 2.2 AA como referência técnica. A interface inclui:
 
 - landmarks e headings semânticos;
-- foco visível e navegação principal por setas, com Tab como alternativa;
+- foco visível e navegação principal por setas;
+- no jogo, Tab alterna exclusivamente entre a mão e o tabuleiro;
+- Enter seleciona cartas da mão ou joga no destino atualmente focado;
+- Escape retorna ao menu, D compra e Ctrl+Z desfaz;
 - alternativa à interação por arrastar e soltar;
 - anúncios de estado com `aria-live`;
 - textos alternativos para cartas e pilhas;
