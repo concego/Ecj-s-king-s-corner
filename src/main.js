@@ -474,11 +474,6 @@ function focusGameZone(zone) {
   if (target) target.focus({ preventScroll: true });
 }
 
-function announceBoardFocus() {
-  const target = document.querySelector(`#board-cell-${boardFocus.row}-${boardFocus.column}`);
-  if (target) announce(target.getAttribute('aria-label') || t('gameTitle'));
-}
-
 function bindGameZones() {
   if (screen !== 'game') return;
   const handZone = app.querySelector('[data-focus-zone="hand"]');
@@ -488,7 +483,6 @@ function bindGameZones() {
       event.preventDefault();
       event.stopPropagation();
       focusGameZone('board');
-      announceBoardFocus();
       return;
     }
     if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
@@ -525,7 +519,6 @@ function bindGameZones() {
         event.preventDefault();
         event.stopPropagation();
         render();
-        announceBoardFocus();
       }
       return;
     }
@@ -540,7 +533,6 @@ function bindGameZones() {
       event.preventDefault();
       event.stopPropagation();
       render();
-      announceBoardFocus();
       return;
     }
     if (event.key === 'Enter') {
