@@ -456,6 +456,7 @@ function bindGameZones() {
   handZone?.addEventListener('keydown', (event) => {
     if (event.key === 'Tab') {
       event.preventDefault();
+      event.stopPropagation();
       focusGameZone('board');
       return;
     }
@@ -464,18 +465,21 @@ function bindGameZones() {
       const direction = event.key === 'ArrowRight' ? 1 : -1;
       handFocusIndex = (handFocusIndex + direction + game.hand.length) % game.hand.length;
       event.preventDefault();
+      event.stopPropagation();
       render();
       announce(`${cardAccessibleName(game.hand[handFocusIndex], locale)}. ${t('notSelected')}`);
       return;
     }
     if (event.key === 'Enter' && game.hand.length) {
       event.preventDefault();
+      event.stopPropagation();
       selectHand(handFocusIndex);
     }
   });
   boardZone?.addEventListener('keydown', (event) => {
     if (event.key === 'Tab') {
       event.preventDefault();
+      event.stopPropagation();
       focusGameZone('hand');
       return;
     }
@@ -486,12 +490,14 @@ function bindGameZones() {
         column: (boardFocus.column + delta[1] + 3) % 3,
       };
       event.preventDefault();
+      event.stopPropagation();
       render();
       announceBoardFocus();
       return;
     }
     if (event.key === 'Enter') {
       event.preventDefault();
+      event.stopPropagation();
       const target = document.querySelector(`#board-cell-${boardFocus.row}-${boardFocus.column}`);
       if (!target) return;
       if (target.dataset.action === 'draw') {
@@ -506,7 +512,7 @@ function bindGameZones() {
 function handleArrowKeyOutsideGroup(event) {
   if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) return false;
   const current = document.activeElement;
-  const currentGroup = current?.closest('.button-list, .setting-list, .inline-actions, .hand, .board');
+  const currentGroup = current?.closest('.button-list, .setting-list, .inline-actions, .hand, .board, [data-focus-zone]');
   if (currentGroup && app.contains(currentGroup)) return false;
   const firstGroup = app.querySelector('.button-list, .setting-list, .inline-actions, .hand, .board');
   if (!firstGroup) return false;
