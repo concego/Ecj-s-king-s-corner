@@ -22,6 +22,8 @@ let screen = locale ? 'menu' : 'language';
 let game = loadGame();
 let history = [];
 let selected = null;
+let handFocusIndex = 0;
+let boardFocus = { row: 1, column: 1 };
 
 function loadSettings() {
   try {
@@ -167,24 +169,26 @@ function pileButton(zone, index, name, pile, areaClass, row, column) {
   const top = pile[pile.length - 1];
   const isSelected = selected?.zone === zone && selected?.index === index;
   const label = t('pileLabel', name, top ? cardAccessibleName(top, locale) : '', pile.length);
-  return `<button type="button" class="pile-button ${areaClass}${isSelected ? ' selected' : ''}${top ? '' : ' empty'}" data-action="select-pile" data-zone="${zone}" data-index="${index}" data-row="${row}" data-column="${column}" aria-pressed="${isSelected}" aria-label="${escapeHtml(label)}">
+  const isFocused = boardFocus.row === row && boardFocus.column === column;
+  return `<div class="pile-button ${areaClass}${isSelected ? ' selected' : ''}${isFocused ? ' focused' : ''}${top ? '' : ' empty'}" role="gridcell" id="board-cell-${row}-${column}" data-action="select-pile" data-zone="${zone}" data-index="${index}" data-row="${row}" data-column="${column}" aria-selected="${isSelected}" aria-label="${escapeHtml(label)}">
     ${top ? cardSvg(top) : `<span>${escapeHtml(t('emptyPile'))}</span>`}
     <span class="pile-label" aria-hidden="true">${escapeHtml(name)}</span>
-  </button>`;
+  </div>`;
 }
 
 function renderGame() {
   const names = [t('foundationNorth'), t('foundationEast'), t('foundationSouth'), t('foundationWest')];
   const corners = [t('cornerNorthWest'), t('cornerNorthEast'), t('cornerSouthEast'), t('cornerSouthWest')];
   const statusText = game.status === 'won' ? t('victory') : game.status === 'blocked' ? t('blocked') : t('instructions');
+  handFocusIndex = game.hand.length ? Math.min(handFocusIndex, game.hand.length - 1) : 0;
   const hand = game.hand.map((card, index) => {
     const isSelected = selected?.zone === 'hand' && selected.index === index;
     const label = `${cardAccessibleName(card, locale)}, ${isSelected ? t('selected') : t('notSelected')}`;
-    return `<button type="button" class="card-button${isSelected ? ' selected' : ''}" data-action="select-hand" data-index="${index}" aria-pressed="${isSelected}" aria-label="${escapeHtml(label)}">${cardSvg(card)}</button>`;
+    return `<div class="card-button${isSelected ? ' selected' : ''}${handFocusIndex === index ? ' focused' : ''}" role="option" id="hand-card-${index}" data-action="select-hand" data-index="${index}" aria-selected="${isSelected}" aria-label="${escapeHtml(label)}" tabindex="-1">${cardSvg(card)}</div>`;
   }).join('');
   const stockLabel = t('stockLabel', game.stock.length);
-  const stock = `<button type="button" class="pile-button area-stock" data-action="draw" data-row="1" data-column="1" aria-label="${escapeHtml(stockLabel)}" ${game.status !== 'playing' || !game.stock.length ? 'disabled' : ''}>${game.stock.length ? cardSvg(null, true) : `<span>${escapeHtml(t('emptyPile'))}</span>`}<span class="pile-label" aria-hidden="true">${escapeHtml(t('stock'))}</span></button>`;
-  const board = `<div class="board" aria-label="${escapeHtml(t('gameTitle'))}">
+  const stock = `<div class="pile-button area-stock${game.status !== 'playing' || !game.stock.length ? ' empty' : ''}" role="gridcell" id="board-cell-1-1" data-action="draw" data-row="1" data-column="1" aria-disabled="${game.status !== 'playing' || !game.stock.length}" aria-label="${escapeHtml(stockLabel)}">${game.stock.length ? cardSvg(null, true) : `<span>${escapeHtml(t('emptyPile'))}</span>`}<span class="pile-label" aria-hidden="true">${escapeHtml(t('stock'))}</span></div>`;
+  const board = `<div class="board" role="grid" tabindex="0" data-focus-zone="board" aria-label="${escapeHtml(t('gameTitle'))}" aria-activedescendant="board-cell-${boardFocus.row}-${boardFocus.column}">
     ${pileButton('corner', 0, corners[0], game.corners[0], 'area-nw', 0, 0)}
     ${pileButton('foundation', 0, names[0], game.foundations[0], 'area-north', 0, 1)}
     ${pileButton('corner', 1, corners[1], game.corners[1], 'area-ne', 0, 2)}
@@ -196,10 +200,10 @@ function renderGame() {
     ${pileButton('corner', 2, corners[2], game.corners[2], 'area-se', 2, 2)}
   </div>`;
   app.innerHTML = `<div class="screen">
-    <header class="game-header"><div><h1>${escapeHtml(t('gameTitle'))}</h1><p id="game-message" class="game-status" role="status" aria-live="polite">${escapeHtml(statusText)}</p></div><div class="inline-actions">${button(t('undo'), 'undo', 'class="secondary"')} ${button(t('newGameShort'), 'new-game', 'class="secondary"')} ${button(t('menu'), 'back-menu', 'class="secondary"')}</div></header>
+    <header class="game-header"><div><h1>${escapeHtml(t('gameTitle'))}</h1><p id="game-message" class="game-status" role="status" aria-live="polite">${escapeHtml(statusText)}</p></div><div class="inline-actions">${button(t('undo'), 'undo', 'class="secondary" tabindex="-1" aria-keyshortcuts="Control+Z"')} ${button(t('newGameShort'), 'new-game', 'class="secondary" tabindex="-1"')} ${button(t('menu'), 'back-menu', 'class="secondary" tabindex="-1" aria-keyshortcuts="Escape"')}</div></header>
     <div class="game-layout">
       ${board}
-      <section class="hand-section panel" aria-labelledby="hand-heading"><h2 id="hand-heading">${escapeHtml(t('hand'))} <span class="legend">(${escapeHtml(t('cardsCount', game.hand.length))})</span></h2><div class="hand">${hand || `<p>${escapeHtml(t('victory'))}</p>`}</div></section>
+      <section class="hand-section panel" role="listbox" tabindex="0" data-focus-zone="hand" aria-labelledby="hand-heading" aria-activedescendant="${game.hand.length ? `hand-card-${handFocusIndex}` : ''}"><h2 id="hand-heading">${escapeHtml(t('hand'))} <span class="legend">(${escapeHtml(t('cardsCount', game.hand.length))})</span></h2><div class="hand">${hand || `<p>${escapeHtml(t('victory'))}</p>`}</div></section>
       <p class="legend">${escapeHtml(t('movesCount', game.moves))} — ${escapeHtml(t('draw'))}: ${game.draws}</p>
     </div>
   </div>`;
@@ -256,12 +260,18 @@ function setupArrowNavigation() {
 }
 
 function focusFirstControl() {
+  if (screen === 'game') {
+    const handZone = app.querySelector('[data-focus-zone="hand"]');
+    if (handZone) handZone.focus({ preventScroll: true });
+    return;
+  }
   const first = app.querySelector('[data-action]:not([disabled])');
   if (first) first.focus({ preventScroll: true });
   else app.focus({ preventScroll: true });
 }
 
 function focusDescriptor(element) {
+  if (element?.dataset?.focusZone) return { focusZone: element.dataset.focusZone };
   if (!element?.dataset?.action) return null;
   return {
     action: element.dataset.action,
@@ -273,6 +283,12 @@ function focusDescriptor(element) {
 
 function restoreFocus(descriptor) {
   if (!descriptor) return focusFirstControl();
+  if (descriptor.focusZone) {
+    const zone = app.querySelector(`[data-focus-zone="${descriptor.focusZone}"]`);
+    if (zone) zone.focus({ preventScroll: true });
+    else focusFirstControl();
+    return;
+  }
   const target = [...app.querySelectorAll('[data-action]')].find((element) => {
     return element.dataset.action === descriptor.action
       && element.dataset.locale === descriptor.locale
@@ -296,6 +312,7 @@ function render() {
   if (screen === 'game') renderGame();
   bindActions();
   setupArrowNavigation();
+  bindGameZones();
   restoreFocus(previousFocus);
 }
 
@@ -422,6 +439,70 @@ function bindActions() {
   });
 }
 
+function focusGameZone(zone) {
+  const target = app.querySelector(`[data-focus-zone="${zone}"]`);
+  if (target) target.focus({ preventScroll: true });
+}
+
+function announceBoardFocus() {
+  const target = document.querySelector(`#board-cell-${boardFocus.row}-${boardFocus.column}`);
+  if (target) announce(target.getAttribute('aria-label') || t('gameTitle'));
+}
+
+function bindGameZones() {
+  if (screen !== 'game') return;
+  const handZone = app.querySelector('[data-focus-zone="hand"]');
+  const boardZone = app.querySelector('[data-focus-zone="board"]');
+  handZone?.addEventListener('keydown', (event) => {
+    if (event.key === 'Tab') {
+      event.preventDefault();
+      focusGameZone('board');
+      return;
+    }
+    if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+      if (!game.hand.length) return;
+      const direction = event.key === 'ArrowRight' ? 1 : -1;
+      handFocusIndex = (handFocusIndex + direction + game.hand.length) % game.hand.length;
+      event.preventDefault();
+      render();
+      announce(`${cardAccessibleName(game.hand[handFocusIndex], locale)}. ${t('notSelected')}`);
+      return;
+    }
+    if (event.key === 'Enter' && game.hand.length) {
+      event.preventDefault();
+      selectHand(handFocusIndex);
+    }
+  });
+  boardZone?.addEventListener('keydown', (event) => {
+    if (event.key === 'Tab') {
+      event.preventDefault();
+      focusGameZone('hand');
+      return;
+    }
+    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) {
+      const delta = { ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1] }[event.key];
+      boardFocus = {
+        row: (boardFocus.row + delta[0] + 3) % 3,
+        column: (boardFocus.column + delta[1] + 3) % 3,
+      };
+      event.preventDefault();
+      render();
+      announceBoardFocus();
+      return;
+    }
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      const target = document.querySelector(`#board-cell-${boardFocus.row}-${boardFocus.column}`);
+      if (!target) return;
+      if (target.dataset.action === 'draw') {
+        announce(t('boardDrawHint'));
+        return;
+      }
+      selectPile(target.dataset.zone, Number(target.dataset.index));
+    }
+  });
+}
+
 function handleArrowKeyOutsideGroup(event) {
   if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) return false;
   const current = document.activeElement;
@@ -448,11 +529,17 @@ function handleArrowKeyOutsideGroup(event) {
 document.addEventListener('keydown', (event) => {
   if (handleArrowKeyOutsideGroup(event)) return;
   if (screen !== 'game') return;
-  if (event.key === 'Escape' && selected) {
+  if (event.key === 'Escape') {
     event.preventDefault();
-    selected = null;
-    announce(t('selectionCancelled'), 'cardCancel');
-    render();
+    if (selected) {
+      selected = null;
+      announce(t('selectionCancelled'), 'cardCancel');
+      render();
+    } else {
+      screen = 'menu';
+      render();
+      announce(t('returnedMenu'), 'menuBack');
+    }
   } else if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') {
     event.preventDefault();
     undo();
