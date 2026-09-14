@@ -122,7 +122,7 @@ function renderOptions() {
       ${setting(t('largeText'), t('largeTextDescription'), toggleButton('largeText'))}
       ${setting(t('reducedMotion'), t('reducedMotionDescription'), toggleButton('reducedMotion'))}
     </div>
-    ${button(t('back'), 'back-menu', 'class="secondary"')}
+    <div class="button-list">${button(t('back'), 'back-menu', 'class="secondary"')}</div>
   </div>`);
 }
 
@@ -132,7 +132,7 @@ function renderCredits() {
     <p>${escapeHtml(t('inspiredBy'))}</p>
     <p>${escapeHtml(t('independentProject'))}</p>
     <p><strong>${escapeHtml(t('contact'))}:</strong> <a href="mailto:euconcego@gmail.com">euconcego@gmail.com</a></p>
-    ${button(t('back'), 'back-menu', 'class="secondary"')}
+    <div class="button-list">${button(t('back'), 'back-menu', 'class="secondary"')}</div>
   </div>`);
 }
 
@@ -422,7 +422,31 @@ function bindActions() {
   });
 }
 
+function handleArrowKeyOutsideGroup(event) {
+  if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) return false;
+  const current = document.activeElement;
+  const currentGroup = current?.closest('.button-list, .setting-list, .inline-actions, .hand, .board');
+  if (currentGroup && app.contains(currentGroup)) return false;
+  const firstGroup = app.querySelector('.button-list, .setting-list, .inline-actions, .hand, .board');
+  if (!firstGroup) return false;
+  const items = focusableElements(firstGroup);
+  if (!items.length) return false;
+  const first = items[0];
+  first.tabIndex = 0;
+  first.focus({ preventScroll: true });
+  const next = moveFocus(firstGroup, first, event.key);
+  if (next && next !== first) {
+    items.forEach((item) => { item.tabIndex = -1; });
+    next.tabIndex = 0;
+    next.focus({ preventScroll: true });
+  }
+  event.preventDefault();
+  playSound('menuFocus');
+  return true;
+}
+
 document.addEventListener('keydown', (event) => {
+  if (handleArrowKeyOutsideGroup(event)) return;
   if (screen !== 'game') return;
   if (event.key === 'Escape' && selected) {
     event.preventDefault();
