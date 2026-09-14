@@ -230,7 +230,7 @@ function renderGame() {
     ${pileButton('corner', 2, corners[2], game.corners[2], 'area-se', 2, 2)}
   </div>`;
   app.innerHTML = `<div class="screen">
-    <header class="game-header"><div><h1>${escapeHtml(t('gameTitle'))}</h1><p id="game-message" class="game-status" role="status" aria-live="polite">${escapeHtml(statusText)}</p></div><div class="inline-actions">${button(t('undo'), 'undo', 'class="secondary" tabindex="-1" aria-keyshortcuts="Control+Z"')} ${button(t('newGameShort'), 'new-game', 'class="secondary" tabindex="-1"')} ${button(t('menu'), 'back-menu', 'class="secondary" tabindex="-1" aria-keyshortcuts="Escape"')}</div></header>
+    <header class="game-header"><div><h1>${escapeHtml(t('gameTitle'))}</h1><p id="game-instructions" class="game-status">${escapeHtml(statusText)}</p></div><div class="inline-actions">${button(t('undo'), 'undo', 'class="secondary" tabindex="-1" aria-keyshortcuts="Control+Z"')} ${button(t('newGameShort'), 'new-game', 'class="secondary" tabindex="-1"')} ${button(t('menu'), 'back-menu', 'class="secondary" tabindex="-1" aria-keyshortcuts="Escape"')}</div></header>
     <div class="game-layout">
       ${board}
       <section class="hand-section panel" role="listbox" tabindex="0" data-focus-zone="hand" aria-labelledby="hand-heading" aria-activedescendant="${game.hand.length ? `hand-card-${handFocusIndex}` : ''}"><h2 id="hand-heading">${escapeHtml(t('hand'))} <span class="legend">(${escapeHtml(t('cardsCount', game.hand.length))})</span></h2><div class="hand">${hand || `<p>${escapeHtml(t('victory'))}</p>`}</div></section>
@@ -474,6 +474,11 @@ function focusGameZone(zone) {
   if (target) target.focus({ preventScroll: true });
 }
 
+function announceBoardFocus() {
+  const target = document.querySelector(`#board-cell-${boardFocus.row}-${boardFocus.column}`);
+  if (target) announce(target.getAttribute('aria-label') || t('gameTitle'));
+}
+
 function bindGameZones() {
   if (screen !== 'game') return;
   const handZone = app.querySelector('[data-focus-zone="hand"]');
@@ -483,6 +488,7 @@ function bindGameZones() {
       event.preventDefault();
       event.stopPropagation();
       focusGameZone('board');
+      announceBoardFocus();
       return;
     }
     if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
@@ -519,6 +525,7 @@ function bindGameZones() {
         event.preventDefault();
         event.stopPropagation();
         render();
+        announceBoardFocus();
       }
       return;
     }
@@ -533,6 +540,7 @@ function bindGameZones() {
       event.preventDefault();
       event.stopPropagation();
       render();
+      announceBoardFocus();
       return;
     }
     if (event.key === 'Enter') {
