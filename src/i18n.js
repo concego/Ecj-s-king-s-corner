@@ -72,6 +72,7 @@ export const translations = {
     cardLabel: (rank, suit, color, position) => `${rank} de ${suit}, ${color}${position ? `, ${position}` : ''}`,
     stockLabel: (n) => `Monte de compra, ${n} carta${n === 1 ? '' : 's'}`,
     pileLabel: (name, top, count) => `${name}, ${count} carta${count === 1 ? '' : 's'}${top ? `, carta do topo: ${top}` : ', vazia'}`,
+    pileFocus: (name, card, position, count) => `${name}, carta ${position} de ${count}: ${card}`,
   },
   en: {
     languageName: 'English',
@@ -146,6 +147,7 @@ export const translations = {
     cardLabel: (rank, suit, color, position) => `${rank} of ${suit}, ${color}${position ? `, ${position}` : ''}`,
     stockLabel: (n) => `Draw pile, ${n} card${n === 1 ? '' : 's'}`,
     pileLabel: (name, top, count) => `${name}, ${count} card${count === 1 ? '' : 's'}${top ? `, top card: ${top}` : ', empty'}`,
+    pileFocus: (name, card, position, count) => `${name}, card ${position} of ${count}: ${card}`,
   },
 };
 
