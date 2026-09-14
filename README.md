@@ -40,6 +40,7 @@ O projeto adota WCAG 2.2 AA como referência técnica. A interface inclui:
 - foco visível e navegação principal por setas;
 - no jogo, Tab alterna exclusivamente entre a mão e o tabuleiro;
 - Enter seleciona cartas da mão ou joga no destino atualmente focado;
+- PageUp e PageDown percorrem as cartas reveladas da pilha focada;
 - Escape retorna ao menu, D compra e Ctrl+Z desfaz;
 - alternativa à interação por arrastar e soltar;
 - anúncios de estado com `aria-live`;
