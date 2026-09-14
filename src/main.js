@@ -110,9 +110,10 @@ function renderMenu() {
   </div>`);
 }
 
-function toggleButton(key) {
+function toggleButton(key, label) {
   const on = settings[key];
-  return button(on ? t('enabled') : t('disabled'), `toggle-${key}`, `class="secondary" aria-pressed="${on}"`);
+  const state = on ? t('enabled') : t('disabled');
+  return button(state, `toggle-${key}`, `class="secondary" aria-pressed="${on}" aria-label="${escapeHtml(`${label}: ${state}`)}"`);
 }
 
 function renderOptions() {
@@ -120,12 +121,12 @@ function renderOptions() {
   app.innerHTML = screenShell(t('options'), t('accessibilityTitle'), `<div class="panel">
     <div class="setting-list">
       ${setting(t('language'), locale === 'pt-BR' ? 'Português (Brasil)' : 'English', `<div class="inline-actions">${button('Português (Brasil)', 'choose-language', 'data-locale="pt-BR" class="secondary"')}${button('English', 'choose-language', 'data-locale="en" class="secondary"')}</div>`)}
-      ${setting(t('sounds'), t('soundsDescription'), toggleButton('soundEnabled'))}
-      ${setting(t('highContrast'), t('highContrastDescription'), toggleButton('highContrast'))}
-      ${setting(t('largeText'), t('largeTextDescription'), toggleButton('largeText'))}
-      ${setting(t('reducedMotion'), t('reducedMotionDescription'), toggleButton('reducedMotion'))}
+      ${setting(t('sounds'), t('soundsDescription'), toggleButton('soundEnabled', t('sounds')))}
+      ${setting(t('highContrast'), t('highContrastDescription'), toggleButton('highContrast', t('highContrast')))}
+      ${setting(t('largeText'), t('largeTextDescription'), toggleButton('largeText', t('largeText')))}
+      ${setting(t('reducedMotion'), t('reducedMotionDescription'), toggleButton('reducedMotion', t('reducedMotion')))}
     </div>
-    <div class="button-list">${button(t('back'), 'back-menu', 'class="secondary"')}</div>
+    <div class="button-list">${button(t('backMainMenu'), 'back-menu', 'class="secondary"')}</div>
   </div>`);
 }
 
@@ -135,7 +136,7 @@ function renderCredits() {
     <p>${escapeHtml(t('inspiredBy'))}</p>
     <p>${escapeHtml(t('independentProject'))}</p>
     <p><strong>${escapeHtml(t('contact'))}:</strong> <a href="mailto:euconcego@gmail.com">euconcego@gmail.com</a></p>
-    <div class="button-list">${button(t('back'), 'back-menu', 'class="secondary"')}</div>
+    <div class="button-list">${button(t('backMainMenu'), 'back-menu', 'class="secondary"')}</div>
   </div>`);
 }
 
@@ -146,7 +147,7 @@ function renderGameMenu() {
     ${button(t('continueGame'), 'continue-game', disabled)}
     ${noSavedText}
     ${button(t('newGame'), 'new-game', 'class="secondary"')}
-    ${button(t('back'), 'back-menu', 'class="secondary"')}
+    ${button(t('backMainMenu'), 'back-menu', 'class="secondary"')}
   </div>`);
 }
 
@@ -574,6 +575,14 @@ function handleArrowKeyOutsideGroup(event) {
 
 document.addEventListener('keydown', (event) => {
   if (handleArrowKeyOutsideGroup(event)) return;
+  if (event.key === 'Escape' && ['options', 'credits', 'game-menu', 'new-game'].includes(screen)) {
+    event.preventDefault();
+    const targetScreen = screen === 'new-game' ? 'game-menu' : 'menu';
+    screen = targetScreen;
+    render();
+    announce(targetScreen === 'menu' ? t('returnedMenu') : t('gameMenuTitle'), 'menuBack');
+    return;
+  }
   if (screen !== 'game') return;
   if (event.key === 'Escape') {
     event.preventDefault();
