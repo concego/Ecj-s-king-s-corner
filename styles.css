@@ -148,6 +148,8 @@ h2 { margin-top: 0; }
   border-color: var(--border);
 }
 .pile-button.selected { border-color: var(--focus); box-shadow: 0 0 0 3px var(--focus); }
+.pile-button.focused { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent); }
+.pile-button.selected.focused { box-shadow: 0 0 0 3px var(--focus), 0 0 0 6px var(--accent); }
 .pile-button.empty { color: var(--muted); background: rgba(255, 255, 255, 0.5); }
 .pile-label { display: block; width: 100%; margin-top: 0.3rem; font-size: 0.8rem; }
 
@@ -160,6 +162,8 @@ h2 { margin-top: 0; }
 .hand { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: start; }
 .hand .card-button { min-width: 5.5rem; padding: 0.25rem; color: var(--text); background: var(--surface); border-color: var(--border); }
 .card-button.selected { border-color: var(--focus); box-shadow: 0 0 0 3px var(--focus); }
+.hand .card-button.focused { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent); }
+.hand .card-button.selected.focused { box-shadow: 0 0 0 3px var(--focus), 0 0 0 6px var(--accent); }
 
 .legend { color: var(--muted); font-size: 0.95rem; }
 
