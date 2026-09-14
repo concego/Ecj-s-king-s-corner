@@ -24,6 +24,7 @@ let history = [];
 let selected = null;
 let handFocusIndex = 0;
 let boardFocus = { row: 1, column: 1 };
+let boardCardIndex = 0;
 
 function loadSettings() {
   try {
@@ -165,13 +166,42 @@ function renderNewGame() {
   </div>`);
 }
 
+function boardPileAt(row, column) {
+  const cells = {
+    '0-0': { zone: 'corner', index: 0 },
+    '0-1': { zone: 'foundation', index: 0 },
+    '0-2': { zone: 'corner', index: 1 },
+    '1-0': { zone: 'foundation', index: 3 },
+    '1-2': { zone: 'foundation', index: 1 },
+    '2-0': { zone: 'corner', index: 3 },
+    '2-1': { zone: 'foundation', index: 2 },
+    '2-2': { zone: 'corner', index: 2 },
+  };
+  const source = cells[`${row}-${column}`];
+  if (!source) return null;
+  return source.zone === 'foundation' ? game.foundations[source.index] : game.corners[source.index];
+}
+
+function boardActiveDescendantId(row, column) {
+  const pile = boardPileAt(row, column);
+  if (!pile?.length) return `board-cell-${row}-${column}`;
+  const index = Math.max(0, Math.min(boardCardIndex, pile.length - 1));
+  return `board-card-${row}-${column}-${index}`;
+}
+
 function pileButton(zone, index, name, pile, areaClass, row, column) {
   const top = pile[pile.length - 1];
   const isSelected = selected?.zone === zone && selected?.index === index;
-  const label = t('pileLabel', name, top ? cardAccessibleName(top, locale) : '', pile.length);
   const isFocused = boardFocus.row === row && boardFocus.column === column;
+  const focusedIndex = isFocused && pile.length ? Math.max(0, Math.min(boardCardIndex, pile.length - 1)) : Math.max(0, pile.length - 1);
+  const focusedCard = pile[focusedIndex];
+  const label = focusedCard
+    ? t('pileFocus', name, cardAccessibleName(focusedCard, locale), focusedIndex + 1, pile.length)
+    : t('pileLabel', name, '', pile.length);
+  const accessibleCards = pile.map((card, cardIndex) => `<span class="sr-only" id="board-card-${row}-${column}-${cardIndex}" role="img" aria-label="${escapeHtml(cardAccessibleName(card, locale))}"></span>`).join('');
   return `<div class="pile-button ${areaClass}${isSelected ? ' selected' : ''}${isFocused ? ' focused' : ''}${top ? '' : ' empty'}" role="gridcell" id="board-cell-${row}-${column}" data-action="select-pile" data-zone="${zone}" data-index="${index}" data-row="${row}" data-column="${column}" aria-selected="${isSelected}" aria-label="${escapeHtml(label)}">
     ${top ? cardSvg(top) : `<span>${escapeHtml(t('emptyPile'))}</span>`}
+    ${accessibleCards}
     <span class="pile-label" aria-hidden="true">${escapeHtml(name)}</span>
   </div>`;
 }
@@ -183,12 +213,12 @@ function renderGame() {
   handFocusIndex = game.hand.length ? Math.min(handFocusIndex, game.hand.length - 1) : 0;
   const hand = game.hand.map((card, index) => {
     const isSelected = selected?.zone === 'hand' && selected.index === index;
-    const label = `${cardAccessibleName(card, locale)}, ${isSelected ? t('selected') : t('notSelected')}`;
+    const label = cardAccessibleName(card, locale);
     return `<div class="card-button${isSelected ? ' selected' : ''}${handFocusIndex === index ? ' focused' : ''}" role="option" id="hand-card-${index}" data-action="select-hand" data-index="${index}" aria-selected="${isSelected}" aria-label="${escapeHtml(label)}" tabindex="-1">${cardSvg(card)}</div>`;
   }).join('');
   const stockLabel = t('stockLabel', game.stock.length);
   const stock = `<div class="pile-button area-stock${game.status !== 'playing' || !game.stock.length ? ' empty' : ''}" role="gridcell" id="board-cell-1-1" data-action="draw" data-row="1" data-column="1" aria-disabled="${game.status !== 'playing' || !game.stock.length}" aria-label="${escapeHtml(stockLabel)}">${game.stock.length ? cardSvg(null, true) : `<span>${escapeHtml(t('emptyPile'))}</span>`}<span class="pile-label" aria-hidden="true">${escapeHtml(t('stock'))}</span></div>`;
-  const board = `<div class="board" role="grid" tabindex="0" data-focus-zone="board" aria-label="${escapeHtml(t('gameTitle'))}" aria-activedescendant="board-cell-${boardFocus.row}-${boardFocus.column}">
+  const board = `<div class="board" role="grid" tabindex="0" data-focus-zone="board" aria-label="${escapeHtml(t('gameTitle'))}" aria-activedescendant="${boardActiveDescendantId(boardFocus.row, boardFocus.column)}">
     ${pileButton('corner', 0, corners[0], game.corners[0], 'area-nw', 0, 0)}
     ${pileButton('foundation', 0, names[0], game.foundations[0], 'area-north', 0, 1)}
     ${pileButton('corner', 1, corners[1], game.corners[1], 'area-ne', 0, 2)}
@@ -444,11 +474,6 @@ function focusGameZone(zone) {
   if (target) target.focus({ preventScroll: true });
 }
 
-function announceBoardFocus() {
-  const target = document.querySelector(`#board-cell-${boardFocus.row}-${boardFocus.column}`);
-  if (target) announce(target.getAttribute('aria-label') || t('gameTitle'));
-}
-
 function bindGameZones() {
   if (screen !== 'game') return;
   const handZone = app.querySelector('[data-focus-zone="hand"]');
@@ -467,7 +492,6 @@ function bindGameZones() {
       event.preventDefault();
       event.stopPropagation();
       render();
-      announce(`${cardAccessibleName(game.hand[handFocusIndex], locale)}. ${t('notSelected')}`);
       return;
     }
     if (event.key === 'Enter' && game.hand.length) {
@@ -483,16 +507,32 @@ function bindGameZones() {
       focusGameZone('hand');
       return;
     }
+    if (event.key === 'PageUp' || event.key === 'PageDown') {
+      event.preventDefault();
+      event.stopPropagation();
+      const pile = boardPileAt(boardFocus.row, boardFocus.column);
+      if (!pile?.length) return;
+      const direction = event.key === 'PageUp' ? -1 : 1;
+      const nextIndex = Math.max(0, Math.min(pile.length - 1, boardCardIndex + direction));
+      if (nextIndex !== boardCardIndex) {
+        boardCardIndex = nextIndex;
+        event.preventDefault();
+        event.stopPropagation();
+        render();
+      }
+      return;
+    }
     if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) {
       const delta = { ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1] }[event.key];
       boardFocus = {
         row: (boardFocus.row + delta[0] + 3) % 3,
         column: (boardFocus.column + delta[1] + 3) % 3,
       };
+      const newPile = boardPileAt(boardFocus.row, boardFocus.column);
+      boardCardIndex = newPile?.length ? newPile.length - 1 : 0;
       event.preventDefault();
       event.stopPropagation();
       render();
-      announceBoardFocus();
       return;
     }
     if (event.key === 'Enter') {
