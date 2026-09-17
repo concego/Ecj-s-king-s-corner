@@ -35,8 +35,7 @@ export function cardAccessibleName(card, locale = 'pt-BR') {
   const rank = RANK_BY_VALUE[card.rank];
   const suitName = locale === 'pt-BR' ? suit.pt : suit.en;
   const rankName = locale === 'pt-BR' ? rank.pt : rank.en;
-  const color = locale === 'pt-BR' ? (suit.color === 'red' ? 'vermelha' : 'preta') : (suit.color === 'red' ? 'red' : 'black');
-  return `${rankName} de ${suitName}, ${color}`;
+  return `${rankName} de ${suitName}`;
 }
 
 export function createDeck() {
