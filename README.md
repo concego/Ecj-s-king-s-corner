@@ -40,8 +40,9 @@ O projeto adota WCAG 2.2 AA como referência técnica. A interface inclui:
 - foco visível e navegação principal por setas;
 - no jogo, Tab alterna exclusivamente entre a mão e o tabuleiro;
 - Enter seleciona cartas da mão ou joga no destino atualmente focado;
-- a pilha focada é anunciada pela posição e pela carta ou intervalo de cartas;
 - Enter no monte de compra compra uma carta;
+- H abre a seção de ajuda;
+- a pilha focada é anunciada pela posição e pela carta ou intervalo de cartas;
 - as setas param nas bordas do tabuleiro, sem autowrap;
 - Escape retorna ao menu e Ctrl+Z desfaz;
 - alternativa à interação por arrastar e soltar;
