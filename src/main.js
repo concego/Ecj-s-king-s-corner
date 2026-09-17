@@ -19,6 +19,7 @@ const SETTINGS_KEY = 'ecj-kings-corner-settings';
 let locale = localStorage.getItem('ecj-kings-corner-locale');
 let settings = loadSettings();
 let screen = locale ? 'menu' : 'language';
+let previousScreen = 'menu';
 let game = loadGame();
 let history = [];
 let selected = null;
@@ -103,6 +104,7 @@ function renderLanguage() {
 function renderMenu() {
   app.innerHTML = screenShell(t('menuTitle'), t('menuLead'), `<div class="panel button-list" aria-label="${escapeHtml(t('menuTitle'))}">
     ${button(t('startGame'), 'menu-start')}
+    ${button(t('help'), 'menu-help', 'class="secondary"')}
     ${button(t('options'), 'menu-options', 'class="secondary"')}
     ${button(t('credits'), 'menu-credits', 'class="secondary"')}
     <p><strong>${escapeHtml(t('contact'))}:</strong> <a href="mailto:euconcego@gmail.com">euconcego@gmail.com</a></p>
@@ -136,6 +138,18 @@ function renderCredits() {
     <p>${escapeHtml(t('independentProject'))}</p>
     <p><strong>${escapeHtml(t('contact'))}:</strong> <a href="mailto:euconcego@gmail.com">euconcego@gmail.com</a></p>
     <div class="button-list">${button(t('backMainMenu'), 'back-menu', 'class="secondary"')}</div>
+  </div>`);
+}
+
+function renderHelp() {
+  const list = ['helpKeyTab', 'helpKeyArrows', 'helpKeyEnter', 'helpKeyUndo', 'helpKeyEscape', 'helpKeyH']
+    .map((key) => `<li>${escapeHtml(t(key))}</li>`).join('');
+  app.innerHTML = screenShell(t('helpTitle'), '', `<div class="panel help-content">
+    <section aria-labelledby="help-objective"><h2 id="help-objective">${escapeHtml(t('helpObjectiveHeading'))}</h2><p>${escapeHtml(t('helpObjective'))}</p></section>
+    <section aria-labelledby="help-how"><h2 id="help-how">${escapeHtml(t('helpHowHeading'))}</h2><p>${escapeHtml(t('helpHow'))}</p></section>
+    <section aria-labelledby="help-keys"><h2 id="help-keys">${escapeHtml(t('helpKeysHeading'))}</h2><ul>${list}</ul></section>
+    <section aria-labelledby="help-colors"><h2 id="help-colors">${escapeHtml(t('helpColorsHeading'))}</h2><p>${escapeHtml(t('helpColors'))}</p></section>
+    <div class="button-list">${button(t('back'), 'back-help', 'class="secondary"')}</div>
   </div>`);
 }
 
@@ -369,6 +383,7 @@ function render() {
   if (screen === 'menu') renderMenu();
   if (screen === 'options') renderOptions();
   if (screen === 'credits') renderCredits();
+  if (screen === 'help') renderHelp();
   if (screen === 'game-menu') renderGameMenu();
   if (screen === 'new-game') renderNewGame();
   if (screen === 'game') renderGame();
@@ -477,7 +492,9 @@ function bindActions() {
       if (action === 'choose-language') return chooseLanguage(element.dataset.locale);
       if (action === 'menu-start') { screen = 'game-menu'; playSound('menuOpen'); render(); return; }
       if (action === 'menu-options') { screen = 'options'; playSound('menuOpen'); render(); return; }
+      if (action === 'menu-help') { previousScreen = screen; screen = 'help'; playSound('menuOpen'); render(); return; }
       if (action === 'menu-credits') { screen = 'credits'; playSound('menuOpen'); render(); return; }
+      if (action === 'back-help') { screen = previousScreen; playSound('menuBack'); render(); return; }
       if (action === 'back-menu') { screen = 'menu'; selected = null; playSound('menuBack'); render(); return; }
       if (action === 'back-game-menu') { screen = 'game-menu'; selected = null; playSound('menuBack'); render(); return; }
       if (action === 'continue-game' && game) { screen = 'game'; selected = null; playSound('menuOpen'); render(); return; }
@@ -592,12 +609,19 @@ function handleArrowKeyOutsideGroup(event) {
 
 document.addEventListener('keydown', (event) => {
   if (handleArrowKeyOutsideGroup(event)) return;
-  if (event.key === 'Escape' && ['options', 'credits', 'game-menu', 'new-game'].includes(screen)) {
+  if (event.key === 'Escape' && ['options', 'credits', 'game-menu', 'new-game', 'help'].includes(screen)) {
     event.preventDefault();
-    const targetScreen = screen === 'new-game' ? 'game-menu' : 'menu';
+    const targetScreen = screen === 'new-game' ? 'game-menu' : screen === 'help' ? previousScreen : 'menu';
     screen = targetScreen;
     render();
     announce(targetScreen === 'menu' ? t('returnedMenu') : t('gameMenuTitle'), 'menuBack');
+    return;
+  }
+  if (!event.ctrlKey && !event.altKey && !event.metaKey && event.key.toLowerCase() === 'h') {
+    event.preventDefault();
+    previousScreen = screen;
+    screen = 'help';
+    render();
     return;
   }
   if (screen !== 'game') return;
