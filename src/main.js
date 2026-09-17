@@ -400,9 +400,9 @@ function selectPile(zone, index) {
       const moveSound = selected?.zone === 'hand' ? 'cardPlay' : 'stackMove';
       selected = null;
       saveGame();
-      announce(t('moveMade'), moveSound);
-      if (game.status === 'won') announce(t('victory'), 'victory');
       render();
+      if (game.status === 'won') announce(t('victory'), 'victory');
+      else announce(boardCellAnnouncement(boardFocus.row, boardFocus.column), moveSound);
     } else {
       announce(zone === 'corner' && pile.length === 0 ? t('invalidCorner') : t('invalidMove'), 'error');
     }
