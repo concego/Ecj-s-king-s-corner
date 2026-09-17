@@ -24,7 +24,6 @@ let history = [];
 let selected = null;
 let handFocusIndex = 0;
 let boardFocus = { row: 1, column: 1 };
-let boardCardIndex = 0;
 
 function loadSettings() {
   try {
@@ -183,46 +182,39 @@ function boardPileAt(row, column) {
   return source.zone === 'foundation' ? game.foundations[source.index] : game.corners[source.index];
 }
 
-function boardActiveDescendantId(row, column) {
-  return `board-cell-${row}-${column}`;
-}
-
 function pileButton(zone, index, name, pile, areaClass, row, column) {
   const top = pile[pile.length - 1];
   const isSelected = selected?.zone === zone && selected?.index === index;
   const isFocused = boardFocus.row === row && boardFocus.column === column;
-  const focusedIndex = isFocused && pile.length ? Math.max(0, Math.min(boardCardIndex, pile.length - 1)) : Math.max(0, pile.length - 1);
-  const focusedCard = pile[focusedIndex];
-  const label = focusedCard
-    ? t('pileFocus', name, cardAccessibleName(focusedCard, locale), focusedIndex + 1, pile.length)
-    : t('pileLabel', name, '', pile.length);
+  const label = boardCellAnnouncement(row, column);
   return `<div class="pile-button ${areaClass}${isSelected ? ' selected' : ''}${isFocused ? ' focused' : ''}${top ? '' : ' empty'}" role="gridcell" id="board-cell-${row}-${column}" data-action="select-pile" data-zone="${zone}" data-index="${index}" data-row="${row}" data-column="${column}" aria-selected="${isSelected}" aria-label="${escapeHtml(label)}">
     ${top ? cardSvg(top) : `<span>${escapeHtml(t('emptyPile'))}</span>`}
     <span class="pile-label" aria-hidden="true">${escapeHtml(name)}</span>
   </div>`;
 }
 
-function boardCellName(row, column) {
+function boardPositionName(row, column) {
   const names = {
-    '0-0': t('cornerNorthWest'),
-    '0-1': t('foundationNorth'),
-    '0-2': t('cornerNorthEast'),
-    '1-0': t('foundationWest'),
-    '1-2': t('foundationEast'),
-    '2-0': t('cornerSouthWest'),
-    '2-1': t('foundationSouth'),
-    '2-2': t('cornerSouthEast'),
+    '0-0': locale === 'pt-BR' ? 'Noroeste' : 'Northwest',
+    '0-1': locale === 'pt-BR' ? 'Norte' : 'North',
+    '0-2': locale === 'pt-BR' ? 'Nordeste' : 'Northeast',
+    '1-0': locale === 'pt-BR' ? 'Oeste' : 'West',
+    '1-2': locale === 'pt-BR' ? 'Leste' : 'East',
+    '2-0': locale === 'pt-BR' ? 'Sudoeste' : 'Southwest',
+    '2-1': locale === 'pt-BR' ? 'Sul' : 'South',
+    '2-2': locale === 'pt-BR' ? 'Sudeste' : 'Southeast',
   };
-  return names[`${row}-${column}`] || t('stock');
+  return names[`${row}-${column}`] || (locale === 'pt-BR' ? 'Monte' : 'Draw pile');
 }
 
-function boardCellLabel(row, column) {
-  if (row === 1 && column === 1) return t('stockLabel', game.stock.length);
+function boardCellAnnouncement(row, column) {
+  const position = boardPositionName(row, column);
+  if (row === 1 && column === 1) return t('boardStock', position, game.stock.length);
   const pile = boardPileAt(row, column);
-  if (!pile?.length) return t('pileLabel', boardCellName(row, column), '', 0);
-  const focused = boardFocus.row === row && boardFocus.column === column;
-  const index = focused ? Math.max(0, Math.min(boardCardIndex, pile.length - 1)) : pile.length - 1;
-  return t('pileFocus', boardCellName(row, column), cardAccessibleName(pile[index], locale), index + 1, pile.length);
+  if (!pile?.length) return t('boardEmpty', position);
+  const first = cardAccessibleName(pile[0], locale);
+  const last = cardAccessibleName(pile[pile.length - 1], locale);
+  return pile.length === 1 ? t('boardCard', position, first) : t('boardRange', position, first, last);
 }
 
 function syncNavigationDom() {
@@ -235,13 +227,13 @@ function syncNavigationDom() {
   }
   const boardZone = app.querySelector('[data-focus-zone="board"]');
   if (boardZone) {
-    boardZone.setAttribute('aria-activedescendant', boardActiveDescendantId(boardFocus.row, boardFocus.column));
+    boardZone.removeAttribute('aria-activedescendant');
     boardZone.querySelectorAll('[role="gridcell"]').forEach((cell) => {
       const row = Number(cell.dataset.row);
       const column = Number(cell.dataset.column);
       const focused = row === boardFocus.row && column === boardFocus.column;
       cell.classList.toggle('focused', focused);
-      cell.setAttribute('aria-label', boardCellLabel(row, column));
+      cell.setAttribute('aria-label', boardCellAnnouncement(row, column));
     });
   }
 }
@@ -258,7 +250,7 @@ function renderGame() {
   }).join('');
   const stockLabel = t('stockLabel', game.stock.length);
   const stock = `<div class="pile-button area-stock${game.status !== 'playing' || !game.stock.length ? ' empty' : ''}" role="gridcell" id="board-cell-1-1" data-action="draw" data-row="1" data-column="1" aria-disabled="${game.status !== 'playing' || !game.stock.length}" aria-label="${escapeHtml(stockLabel)}">${game.stock.length ? cardSvg(null, true) : `<span>${escapeHtml(t('emptyPile'))}</span>`}<span class="pile-label" aria-hidden="true">${escapeHtml(t('stock'))}</span></div>`;
-  const board = `<div class="board" role="grid" tabindex="0" data-focus-zone="board" aria-label="${escapeHtml(t('gameTitle'))}" aria-activedescendant="${boardActiveDescendantId(boardFocus.row, boardFocus.column)}">
+  const board = `<div class="board" role="grid" tabindex="0" data-focus-zone="board" aria-label="${escapeHtml(t('gameTitle'))}">
     ${pileButton('corner', 0, corners[0], game.corners[0], 'area-nw', 0, 0)}
     ${pileButton('foundation', 0, names[0], game.foundations[0], 'area-north', 0, 1)}
     ${pileButton('corner', 1, corners[1], game.corners[1], 'area-ne', 0, 2)}
@@ -509,6 +501,10 @@ function focusGameZone(zone) {
   if (target) target.focus({ preventScroll: true });
 }
 
+function announceBoardFocus() {
+  announce(boardCellAnnouncement(boardFocus.row, boardFocus.column));
+}
+
 function bindGameZones() {
   if (screen !== 'game') return;
   const handZone = app.querySelector('[data-focus-zone="hand"]');
@@ -518,6 +514,7 @@ function bindGameZones() {
       event.preventDefault();
       event.stopPropagation();
       focusGameZone('board');
+      announceBoardFocus();
       return;
     }
     if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
@@ -542,32 +539,18 @@ function bindGameZones() {
       focusGameZone('hand');
       return;
     }
-    if (event.key === 'PageUp' || event.key === 'PageDown') {
-      event.preventDefault();
-      event.stopPropagation();
-      const pile = boardPileAt(boardFocus.row, boardFocus.column);
-      if (!pile?.length) return;
-      const direction = event.key === 'PageUp' ? -1 : 1;
-      const nextIndex = Math.max(0, Math.min(pile.length - 1, boardCardIndex + direction));
-      if (nextIndex !== boardCardIndex) {
-        boardCardIndex = nextIndex;
-        event.preventDefault();
-        event.stopPropagation();
-        syncNavigationDom();
-      }
-      return;
-    }
     if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) {
       const delta = { ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1] }[event.key];
       const nextRow = Math.max(0, Math.min(2, boardFocus.row + delta[0]));
       const nextColumn = Math.max(0, Math.min(2, boardFocus.column + delta[1]));
       const changed = nextRow !== boardFocus.row || nextColumn !== boardFocus.column;
       boardFocus = { row: nextRow, column: nextColumn };
-      const newPile = boardPileAt(boardFocus.row, boardFocus.column);
-      boardCardIndex = newPile?.length ? newPile.length - 1 : 0;
       event.preventDefault();
       event.stopPropagation();
-      if (changed) syncNavigationDom();
+      if (changed) {
+        syncNavigationDom();
+        announceBoardFocus();
+      }
       return;
     }
     if (event.key === 'Enter') {
