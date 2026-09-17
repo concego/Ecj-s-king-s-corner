@@ -424,12 +424,7 @@ function selectPile(zone, index) {
 }
 
 function handleDraw() {
-  if (selected) {
-    selected = null;
-    announce(t('selectionCancelled'), 'cardCancel');
-    render();
-    return;
-  }
+  selected = null;
   const before = cloneGame(game);
   const card = drawCard(game);
   if (!card) {
@@ -581,7 +576,7 @@ function bindGameZones() {
       const target = document.querySelector(`#board-cell-${boardFocus.row}-${boardFocus.column}`);
       if (!target) return;
       if (target.dataset.action === 'draw') {
-        announce(t('boardDrawHint'));
+        handleDraw();
         return;
       }
       selectPile(target.dataset.zone, Number(target.dataset.index));
@@ -637,9 +632,6 @@ document.addEventListener('keydown', (event) => {
   } else if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') {
     event.preventDefault();
     undo();
-  } else if (!event.ctrlKey && !event.metaKey && event.key.toLowerCase() === 'd') {
-    event.preventDefault();
-    handleDraw();
   }
 });
 
