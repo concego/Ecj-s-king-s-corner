@@ -78,12 +78,12 @@ function applySettings() {
 
 function cardSvg(card, back = false) {
   if (back) {
-    return `<svg class="card-svg" viewBox="0 0 120 168" aria-hidden="true" focusable="false"><rect x="2" y="2" width="116" height="164" rx="8" fill="#174d70" stroke="#17212b" stroke-width="4"/><rect x="12" y="12" width="96" height="144" rx="5" fill="none" stroke="#ffffff" stroke-width="3"/><path d="M20 84h80M60 20v128" stroke="#ffffff" stroke-width="2" opacity=".8"/></svg>`;
+    return `<svg class="card-svg" viewBox="0 0 120 168" role="presentation" aria-hidden="true" focusable="false"><rect x="2" y="2" width="116" height="164" rx="8" fill="#174d70" stroke="#17212b" stroke-width="4"/><rect x="12" y="12" width="96" height="144" rx="5" fill="none" stroke="#ffffff" stroke-width="3"/><path d="M20 84h80M60 20v128" stroke="#ffffff" stroke-width="2" opacity=".8"/></svg>`;
   }
   const suit = SUIT_BY_ID[card.suit];
   const rank = RANK_BY_VALUE[card.rank];
   const tone = suit.color === 'red' ? 'card-red' : 'card-black';
-  return `<svg class="card-svg" viewBox="0 0 120 168" aria-hidden="true" focusable="false"><rect x="2" y="2" width="116" height="164" rx="8" fill="#ffffff" stroke="#17212b" stroke-width="4"/><text class="${tone}" x="14" y="31" font-size="22">${escapeHtml(rank.short)}</text><text class="${tone}" x="14" y="54" font-size="22">${suit.symbol}</text><text class="${tone}" x="60" y="105" text-anchor="middle" font-size="52">${suit.symbol}</text><text class="${tone}" x="106" y="148" text-anchor="end" font-size="22" transform="rotate(180 106 148)">${escapeHtml(rank.short)} ${suit.symbol}</text></svg>`;
+  return `<svg class="card-svg" viewBox="0 0 120 168" role="presentation" aria-hidden="true" focusable="false"><rect x="2" y="2" width="116" height="164" rx="8" fill="#ffffff" stroke="#17212b" stroke-width="4"/><text class="${tone}" x="14" y="31" font-size="22">${escapeHtml(rank.short)}</text><text class="${tone}" x="14" y="54" font-size="22">${suit.symbol}</text><text class="${tone}" x="60" y="105" text-anchor="middle" font-size="52">${suit.symbol}</text><text class="${tone}" x="106" y="148" text-anchor="end" font-size="22" transform="rotate(180 106 148)">${escapeHtml(rank.short)} ${suit.symbol}</text></svg>`;
 }
 
 function screenShell(title, lead, content, narrow = true) {
@@ -184,10 +184,7 @@ function boardPileAt(row, column) {
 }
 
 function boardActiveDescendantId(row, column) {
-  const pile = boardPileAt(row, column);
-  if (!pile?.length) return `board-cell-${row}-${column}`;
-  const index = Math.max(0, Math.min(boardCardIndex, pile.length - 1));
-  return `board-card-${row}-${column}-${index}`;
+  return `board-cell-${row}-${column}`;
 }
 
 function pileButton(zone, index, name, pile, areaClass, row, column) {
@@ -199,12 +196,54 @@ function pileButton(zone, index, name, pile, areaClass, row, column) {
   const label = focusedCard
     ? t('pileFocus', name, cardAccessibleName(focusedCard, locale), focusedIndex + 1, pile.length)
     : t('pileLabel', name, '', pile.length);
-  const accessibleCards = pile.map((card, cardIndex) => `<span class="sr-only" id="board-card-${row}-${column}-${cardIndex}" role="img" aria-label="${escapeHtml(cardAccessibleName(card, locale))}"></span>`).join('');
   return `<div class="pile-button ${areaClass}${isSelected ? ' selected' : ''}${isFocused ? ' focused' : ''}${top ? '' : ' empty'}" role="gridcell" id="board-cell-${row}-${column}" data-action="select-pile" data-zone="${zone}" data-index="${index}" data-row="${row}" data-column="${column}" aria-selected="${isSelected}" aria-label="${escapeHtml(label)}">
     ${top ? cardSvg(top) : `<span>${escapeHtml(t('emptyPile'))}</span>`}
-    ${accessibleCards}
     <span class="pile-label" aria-hidden="true">${escapeHtml(name)}</span>
   </div>`;
+}
+
+function boardCellName(row, column) {
+  const names = {
+    '0-0': t('cornerNorthWest'),
+    '0-1': t('foundationNorth'),
+    '0-2': t('cornerNorthEast'),
+    '1-0': t('foundationWest'),
+    '1-2': t('foundationEast'),
+    '2-0': t('cornerSouthWest'),
+    '2-1': t('foundationSouth'),
+    '2-2': t('cornerSouthEast'),
+  };
+  return names[`${row}-${column}`] || t('stock');
+}
+
+function boardCellLabel(row, column) {
+  if (row === 1 && column === 1) return t('stockLabel', game.stock.length);
+  const pile = boardPileAt(row, column);
+  if (!pile?.length) return t('pileLabel', boardCellName(row, column), '', 0);
+  const focused = boardFocus.row === row && boardFocus.column === column;
+  const index = focused ? Math.max(0, Math.min(boardCardIndex, pile.length - 1)) : pile.length - 1;
+  return t('pileFocus', boardCellName(row, column), cardAccessibleName(pile[index], locale), index + 1, pile.length);
+}
+
+function syncNavigationDom() {
+  const handZone = app.querySelector('[data-focus-zone="hand"]');
+  if (handZone) {
+    handZone.setAttribute('aria-activedescendant', game.hand.length ? `hand-card-${handFocusIndex}` : '');
+    handZone.querySelectorAll('[data-action="select-hand"]').forEach((card, index) => {
+      card.classList.toggle('focused', index === handFocusIndex);
+    });
+  }
+  const boardZone = app.querySelector('[data-focus-zone="board"]');
+  if (boardZone) {
+    boardZone.setAttribute('aria-activedescendant', boardActiveDescendantId(boardFocus.row, boardFocus.column));
+    boardZone.querySelectorAll('[role="gridcell"]').forEach((cell) => {
+      const row = Number(cell.dataset.row);
+      const column = Number(cell.dataset.column);
+      const focused = row === boardFocus.row && column === boardFocus.column;
+      cell.classList.toggle('focused', focused);
+      cell.setAttribute('aria-label', boardCellLabel(row, column));
+    });
+  }
 }
 
 function renderGame() {
@@ -492,7 +531,7 @@ function bindGameZones() {
       handFocusIndex = (handFocusIndex + direction + game.hand.length) % game.hand.length;
       event.preventDefault();
       event.stopPropagation();
-      render();
+      syncNavigationDom();
       return;
     }
     if (event.key === 'Enter' && game.hand.length) {
@@ -519,21 +558,21 @@ function bindGameZones() {
         boardCardIndex = nextIndex;
         event.preventDefault();
         event.stopPropagation();
-        render();
+        syncNavigationDom();
       }
       return;
     }
     if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) {
       const delta = { ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1] }[event.key];
-      boardFocus = {
-        row: (boardFocus.row + delta[0] + 3) % 3,
-        column: (boardFocus.column + delta[1] + 3) % 3,
-      };
+      const nextRow = Math.max(0, Math.min(2, boardFocus.row + delta[0]));
+      const nextColumn = Math.max(0, Math.min(2, boardFocus.column + delta[1]));
+      const changed = nextRow !== boardFocus.row || nextColumn !== boardFocus.column;
+      boardFocus = { row: nextRow, column: nextColumn };
       const newPile = boardPileAt(boardFocus.row, boardFocus.column);
       boardCardIndex = newPile?.length ? newPile.length - 1 : 0;
       event.preventDefault();
       event.stopPropagation();
-      render();
+      if (changed) syncNavigationDom();
       return;
     }
     if (event.key === 'Enter') {
