@@ -5,7 +5,7 @@ Versão web, solo e bilíngue de **Kings in the Corner**, criada pela Equipe Euc
 - Teste online: [GitHub Pages](https://concego.github.io/Ecj-s-king-s-corner/)
 - Release atual: [v0.1.0](https://github.com/concego/Ecj-s-king-s-corner/releases/tag/v0.1.0)
 
-O projeto começa com um modo de treino solo, controles por teclado e cartas desenhadas como SVG inline. A interface é desenvolvida com foco em **WCAG 2.2 nível AA**, sem depender de cor, som, mouse ou arrastar e soltar para transmitir ou executar uma ação.
+O projeto inclui os modos **Treino solo**, para praticar sem pontuação, e **Record solo**, uma partida pontuada com o mural local das três melhores marcas. As cartas são desenhadas como SVG inline. A interface é desenvolvida com foco em **WCAG 2.2 nível AA**, sem depender de cor, som, mouse ou arrastar e soltar para transmitir ou executar uma ação.
 
 ## Estado atual
 
@@ -13,7 +13,9 @@ O projeto começa com um modo de treino solo, controles por teclado e cartas des
 - Menu inicial com iniciar jogo, opções e créditos.
 - Opções de idioma, sons, alto contraste, texto ampliado e redução de movimento.
 - Menu de jogo com continuar jogo e iniciar novo jogo.
-- Seleção do modo Treino solo.
+- Seleção dos modos Treino solo (prática) e Record solo (pontuado).
+- Mural acessível com as três maiores pontuações do Record solo, salvo localmente neste dispositivo.
+- No Record solo: vitória +100; derrota -100; jogar uma carta soma seu valor; comprar carta comum subtrai seu valor; comprar Rei não subtrai; jogada inválida confirmada -3; pilha de pelo menos duas cartas sobre pilha ocupada +5; retorno exato repetido -5; desfazer -10.
 - Tabuleiro funcional para a base do Kings in the Corner: mão, monte, quatro pilhas principais, quatro cantos, movimentos, compra, desfazer e salvamento local.
 - Sons procedurais originais em WAV, gerados pelo script Python em `tools/generate_sounds.py`.
 - Seção de ajuda acessível pela tecla `H`, com instruções separadas para teclado e dispositivos móveis.
