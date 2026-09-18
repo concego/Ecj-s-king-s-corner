@@ -25,6 +25,7 @@ let history = [];
 let selected = null;
 let handFocusIndex = 0;
 let boardFocus = { row: 1, column: 1 };
+let mobileSection = 'board';
 
 function loadSettings() {
   try {
@@ -275,12 +276,16 @@ function renderGame() {
     ${pileButton('foundation', 2, names[2], game.foundations[2], 'area-south', 2, 1)}
     ${pileButton('corner', 2, corners[2], game.corners[2], 'area-se', 2, 2)}
   </div>`;
-  const boardSection = `<details open class="mobile-accordion board-accordion"><summary>${escapeHtml(t('boardSection'))}</summary>${board}</details>`;
-  const handSection = `<details open class="mobile-accordion hand-accordion"><summary>${escapeHtml(t('handSection'))}</summary><section class="hand-section panel" role="listbox" tabindex="0" data-focus-zone="hand" aria-labelledby="hand-heading" aria-activedescendant="${game.hand.length ? `hand-card-${handFocusIndex}` : ''}"><h2 id="hand-heading">${escapeHtml(t('hand'))} <span class="legend">(${escapeHtml(t('cardsCount', game.hand.length))})</span></h2><div class="hand">${hand || `<p>${escapeHtml(t('victory'))}</p>`}</div></section></details>`;
-  const mobileControls = `<details open class="mobile-accordion mobile-controls"><summary>${escapeHtml(t('controlsSection'))}</summary><div class="mobile-control-list">${button(t('backMainMenu'), 'back-menu', 'class="secondary" aria-keyshortcuts="Escape"')}${button(t('help'), 'menu-help', 'class="secondary" aria-keyshortcuts="H"')}${button(t('undo'), 'undo', 'class="secondary" aria-keyshortcuts="Control+Z"')}</div></details>`;
+  const boardSection = `<section class="mobile-game-section board-section${mobileSection === 'board' ? '' : ' mobile-section-hidden'}" data-mobile-section="board" aria-labelledby="board-section-heading"><h2 id="board-section-heading" class="mobile-section-title">${escapeHtml(t('boardSection'))}</h2>${board}</section>`;
+  const handSection = `<section class="mobile-game-section hand-section-wrapper${mobileSection === 'hand' ? '' : ' mobile-section-hidden'}" data-mobile-section="hand" aria-labelledby="hand-section-heading"><h2 id="hand-section-heading" class="mobile-section-title">${escapeHtml(t('handSection'))}</h2><section class="hand-section panel" role="listbox" tabindex="0" data-focus-zone="hand" aria-labelledby="hand-heading" aria-activedescendant="${game.hand.length ? `hand-card-${handFocusIndex}` : ''}"><h3 id="hand-heading">${escapeHtml(t('hand'))} <span class="legend">(${escapeHtml(t('cardsCount', game.hand.length))})</span></h3><div class="hand">${hand || `<p>${escapeHtml(t('victory'))}</p>`}</div></section></section>`;
+  const mobileControls = `<section class="mobile-game-section controls-section${mobileSection === 'controls' ? '' : ' mobile-section-hidden'}" data-mobile-section="controls" aria-labelledby="controls-section-heading"><h2 id="controls-section-heading" class="mobile-section-title">${escapeHtml(t('controlsSection'))}</h2><div class="mobile-control-list">${button(t('backMainMenu'), 'back-menu', 'class="secondary" aria-keyshortcuts="Escape"')}${button(t('help'), 'menu-help', 'class="secondary" aria-keyshortcuts="H"')}${button(t('undo'), 'undo', 'class="secondary" aria-keyshortcuts="Control+Z"')}</div></section>`;
+  const mobileNavigation = `<section class="mobile-section-navigation" aria-labelledby="mobile-navigation-heading"><h2 id="mobile-navigation-heading">${escapeHtml(t('sectionNavigation'))}</h2><nav class="mobile-section-nav-list" aria-label="${escapeHtml(t('sectionNavigation'))}">${button(t('boardSection'), 'mobile-section', `class="secondary" data-section="board" aria-controls="board-section-heading" aria-pressed="${mobileSection === 'board'}"`)}${button(t('handSection'), 'mobile-section', `class="secondary" data-section="hand" aria-controls="hand-section-heading" aria-pressed="${mobileSection === 'hand'}"`)}${button(t('controlsSection'), 'mobile-section', `class="secondary" data-section="controls" aria-controls="controls-section-heading" aria-pressed="${mobileSection === 'controls'}"`)}</nav></section>`;
+  const currentSectionHeading = `<h2 id="mobile-current-section" class="mobile-current-section" tabindex="-1">${escapeHtml(t('currentSection', mobileSection === 'board' ? t('boardSection') : mobileSection === 'hand' ? t('handSection') : t('controlsSection')))}</h2>`;
   app.innerHTML = `<div class="screen">
     <header class="game-header"><div><h1>${escapeHtml(t('gameTitle'))}</h1><p id="game-instructions" class="game-status">${escapeHtml(statusText)}</p></div><div class="inline-actions desktop-controls">${button(t('undo'), 'undo', 'class="secondary" tabindex="-1" aria-keyshortcuts="Control+Z"')} ${button(t('newGameShort'), 'new-game', 'class="secondary" tabindex="-1"')} ${button(t('menu'), 'back-menu', 'class="secondary" tabindex="-1" aria-keyshortcuts="Escape"')}</div></header>
     <div class="game-layout">
+      ${mobileNavigation}
+      ${currentSectionHeading}
       ${boardSection}
       ${handSection}
       ${mobileControls}
@@ -306,7 +311,7 @@ function moveFocus(group, current, direction) {
     return destination || current;
   }
   const vertical = group.classList.contains('button-list') || group.classList.contains('setting-list');
-  const horizontal = group.classList.contains('inline-actions') || group.classList.contains('hand');
+  const horizontal = group.classList.contains('inline-actions') || group.classList.contains('hand') || group.classList.contains('mobile-section-nav-list');
   if (vertical && (direction === 'ArrowUp' || direction === 'ArrowDown')) {
     const next = direction === 'ArrowDown' ? index + 1 : index - 1;
     return items[(next + items.length) % items.length];
@@ -319,7 +324,7 @@ function moveFocus(group, current, direction) {
 }
 
 function setupArrowNavigation() {
-  const groups = app.querySelectorAll('.button-list, .setting-list, .inline-actions, .hand, .board');
+  const groups = app.querySelectorAll('.button-list, .setting-list, .inline-actions, .hand, .board, .mobile-section-nav-list');
   groups.forEach((group) => {
     const items = focusableElements(group);
     if (!items.length) return;
@@ -341,8 +346,9 @@ function setupArrowNavigation() {
 
 function focusFirstControl() {
   if (screen === 'game') {
-    const handZone = app.querySelector('[data-focus-zone="hand"]');
-    if (handZone) handZone.focus({ preventScroll: true });
+    const desiredZone = isMobileLayout() && mobileSection === 'hand' ? 'hand' : 'board';
+    const zone = app.querySelector(`[data-focus-zone="${desiredZone}"]`);
+    if (zone && !zone.closest('.mobile-section-hidden')) zone.focus({ preventScroll: true });
     return;
   }
   const first = app.querySelector('[data-action]:not([disabled])');
@@ -466,6 +472,7 @@ function startClassic() {
   game = createGame();
   history = [];
   selected = null;
+  mobileSection = 'board';
   saveGame();
   screen = 'game';
   announce(t('gameSaved'), 'confirm');
@@ -497,6 +504,12 @@ function bindActions() {
       if (action === 'menu-start') { screen = 'game-menu'; playSound('menuOpen'); render(); return; }
       if (action === 'menu-options') { screen = 'options'; playSound('menuOpen'); render(); return; }
       if (action === 'menu-help') { previousScreen = screen; screen = 'help'; playSound('menuOpen'); render(); return; }
+      if (action === 'mobile-section') {
+        mobileSection = element.dataset.section;
+        render();
+        app.querySelector('#mobile-current-section')?.focus({ preventScroll: true });
+        return;
+      }
       if (action === 'menu-credits') { screen = 'credits'; playSound('menuOpen'); render(); return; }
       if (action === 'back-help') { screen = previousScreen; playSound('menuBack'); render(); return; }
       if (action === 'back-menu') { screen = 'menu'; selected = null; playSound('menuBack'); render(); return; }
@@ -517,9 +530,20 @@ function bindActions() {
   });
 }
 
+function isMobileLayout() {
+  return window.matchMedia('(max-width: 48rem)').matches;
+}
+
 function focusGameZone(zone) {
-  const target = app.querySelector(`[data-focus-zone="${zone}"]`);
-  if (target) target.focus({ preventScroll: true });
+  let target = app.querySelector(`[data-focus-zone="${zone}"]`);
+  if (!target) return;
+  const section = target.closest('[data-mobile-section]');
+  if (isMobileLayout() && section?.classList.contains('mobile-section-hidden')) {
+    mobileSection = zone;
+    render();
+    target = app.querySelector(`[data-focus-zone="${zone}"]`);
+  }
+  target?.focus({ preventScroll: true });
 }
 
 function announceBoardFocus() {
@@ -591,7 +615,7 @@ function bindGameZones() {
 function handleArrowKeyOutsideGroup(event) {
   if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) return false;
   const current = document.activeElement;
-  const currentGroup = current?.closest('.button-list, .setting-list, .inline-actions, .hand, .board, [data-focus-zone]');
+  const currentGroup = current?.closest('.button-list, .setting-list, .inline-actions, .hand, .board, .mobile-section-nav-list, [data-focus-zone]');
   if (currentGroup && app.contains(currentGroup)) return false;
   const firstGroup = app.querySelector('.button-list, .setting-list, .inline-actions, .hand, .board');
   if (!firstGroup) return false;
