@@ -10,12 +10,13 @@ O projeto inclui os modos **Treino solo**, para praticar sem pontuação, e **Re
 ## Estado atual
 
 - Seleção inicial de idioma: Português (Brasil) e English.
-- Menu inicial com iniciar jogo, opções e créditos.
+- Menu inicial com iniciar jogo, Mural, opções e créditos.
 - Opções de idioma, sons, alto contraste, texto ampliado e redução de movimento.
 - Menu de jogo com continuar jogo e iniciar novo jogo.
 - Seleção dos modos Treino solo (prática) e Record solo (pontuado).
 - Mural acessível com as três maiores pontuações do Record solo, salvo localmente neste dispositivo.
-- No Record solo: vitória +100; derrota -100; jogar uma carta soma seu valor; comprar carta comum subtrai seu valor; comprar Rei não subtrai; jogada inválida confirmada -3; pilha de pelo menos duas cartas sobre pilha ocupada +5; retorno exato repetido -5; desfazer -10.
+- No Record solo: vitória +100; derrota -100; jogar uma carta soma seu valor; comprar carta comum subtrai seu valor; comprar Rei não subtrai; enviar um Rei para um canto vale +13 uma única vez; jogada inválida confirmada -3; pilha de pelo menos duas cartas sobre pilha ocupada +5; retorno exato repetido -5; desfazer -10.
+- Pilhas movimentadas preservam todas as cartas. Anúncios de pilhas informam a primeira e a última carta, além da quantidade total.
 - Tabuleiro funcional para a base do Kings in the Corner: mão, monte, quatro pilhas principais, quatro cantos, movimentos, compra, desfazer e salvamento local.
 - Sons procedurais originais em WAV, gerados pelo script Python em `tools/generate_sounds.py`.
 - Seção de ajuda acessível pela tecla `H`, com instruções separadas para teclado e dispositivos móveis.
