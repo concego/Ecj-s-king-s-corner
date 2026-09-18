@@ -57,9 +57,13 @@ export function shuffle(deck, random = Math.random) {
   return copy;
 }
 
-export function createGame(random = Math.random) {
+export function createGame(modeOrRandom = 'training', maybeRandom = Math.random) {
+  // Keep the old createGame(random) signature while allowing createGame(mode, random).
+  const mode = typeof modeOrRandom === 'string' ? modeOrRandom : 'training';
+  const random = typeof modeOrRandom === 'function' ? modeOrRandom : maybeRandom;
   const deck = shuffle(createDeck(), random);
   return {
+    mode,
     hand: deck.splice(0, 7),
     stock: deck,
     foundations: [deck.splice(0, 1), deck.splice(0, 1), deck.splice(0, 1), deck.splice(0, 1)],
@@ -67,6 +71,16 @@ export function createGame(random = Math.random) {
     moves: 0,
     draws: 0,
     status: 'playing',
+    score: 0,
+    usedCardPoints: 0,
+    drawnCardPoints: 0,
+    invalidMoves: 0,
+    stackBonuses: 0,
+    cyclePenalties: 0,
+    undoCount: 0,
+    resultAwarded: false,
+    scoreSaved: false,
+    moveLog: [],
   };
 }
 
