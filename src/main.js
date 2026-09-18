@@ -15,6 +15,7 @@ const app = document.querySelector('#app');
 const status = document.querySelector('#status');
 const SAVED_GAME_KEY = 'ecj-kings-corner-game';
 const SETTINGS_KEY = 'ecj-kings-corner-settings';
+const SCOREBOARD_KEY = 'ecj-kings-corner-scoreboard';
 
 let locale = localStorage.getItem('ecj-kings-corner-locale');
 let settings = loadSettings();
@@ -49,7 +50,12 @@ function saveSettings() {
 function loadGame() {
   try {
     const saved = JSON.parse(localStorage.getItem(SAVED_GAME_KEY) || 'null');
-    return saved?.hand && saved?.stock && saved?.foundations && saved?.corners ? saved : null;
+    if (!saved?.hand || !saved?.stock || !saved?.foundations || !saved?.corners) return null;
+    return {
+      mode: 'training', score: 0, usedCardPoints: 0, drawnCardPoints: 0,
+      invalidMoves: 0, stackBonuses: 0, cyclePenalties: 0, undoCount: 0,
+      resultAwarded: false, scoreSaved: false, moveLog: [], ...saved,
+    };
   } catch {
     return null;
   }
@@ -105,6 +111,7 @@ function renderLanguage() {
 function renderMenu() {
   app.innerHTML = screenShell(t('menuTitle'), t('menuLead'), `<div class="panel button-list" aria-label="${escapeHtml(t('menuTitle'))}">
     ${button(t('startGame'), 'menu-start')}
+    ${button(t('mural'), 'menu-mural', 'class="secondary"')}
     ${button(t('help'), 'menu-help', 'class="secondary"')}
     ${button(t('options'), 'menu-options', 'class="secondary"')}
     ${button(t('credits'), 'menu-credits', 'class="secondary"')}
@@ -152,6 +159,7 @@ function renderHelp() {
     <section aria-labelledby="help-how"><h2 id="help-how">${escapeHtml(t('helpHowHeading'))}</h2><p>${escapeHtml(t('helpHow'))}</p></section>
     <section aria-labelledby="help-keys"><h2 id="help-keys">${escapeHtml(t('helpControlsHeading'))}</h2><h3>${escapeHtml(t('helpKeyboardHeading'))}</h3><ul>${keyboardList}</ul><h3>${escapeHtml(t('helpMobileHeading'))}</h3><ul>${mobileList}</ul></section>
     <section aria-labelledby="help-colors"><h2 id="help-colors">${escapeHtml(t('helpColorsHeading'))}</h2><p>${escapeHtml(t('helpColors'))}</p></section>
+    <section aria-labelledby="help-record"><h2 id="help-record">${escapeHtml(t('helpRecordHeading'))}</h2><p>${escapeHtml(t('helpRecord'))}</p></section>
     <div class="button-list">${button(t('back'), 'back-help', 'class="secondary"')}</div>
   </div>`);
 }
@@ -171,16 +179,25 @@ function renderNewGame() {
   app.innerHTML = screenShell(t('styleTitle'), '', `<div class="panel">
     <fieldset>
       <legend><strong>${escapeHtml(t('styleTitle'))}</strong></legend>
-      <div class="setting">
-        <div><strong>${escapeHtml(t('classic'))}</strong><small>${escapeHtml(t('classicDescription'))}</small></div>
-        <span aria-label="${escapeHtml(t('classic'))}">✓</span>
-      </div>
+      <div class="setting"><div><strong>${escapeHtml(t('classic'))}</strong><small>${escapeHtml(t('classicDescription'))}</small></div>${button(t('startClassic'), 'start-training')}</div>
+      <div class="setting"><div><strong>${escapeHtml(t('recordSolo'))}</strong><small>${escapeHtml(t('recordSoloDescription'))}</small></div>${button(t('startRecordSolo'), 'start-record')}</div>
     </fieldset>
-    <div class="inline-actions">
-      ${button(t('startClassic'), 'start-classic')}
-      ${button(t('back'), 'back-game-menu', 'class="secondary"')}
-    </div>
+    <div class="inline-actions">${button(t('back'), 'back-game-menu', 'class="secondary"')}</div>
   </div>`);
+}
+
+function scoreboardEntries() {
+  try {
+    const entries = JSON.parse(localStorage.getItem(SCOREBOARD_KEY) || '[]');
+    return Array.isArray(entries) ? entries.filter((entry) => Number.isFinite(Number(entry.score))).slice(0, 3) : [];
+  } catch { return []; }
+}
+
+function renderMural() {
+  const entries = scoreboardEntries();
+  const rows = entries.map((entry, index) => `<tr><td>${index + 1}</td><td>${escapeHtml(String(entry.score))}</td><td>${escapeHtml(entry.mode || '')}</td><td>${escapeHtml(entry.result || '')}</td></tr>`).join('');
+  const table = entries.length ? `<div class="table-wrapper"><table><caption>${escapeHtml(t('scoreboardTitle'))}</caption><thead><tr><th scope="col">${escapeHtml(t('scoreboardPosition'))}</th><th scope="col">${escapeHtml(t('scoreboardPoints'))}</th><th scope="col">${escapeHtml(t('scoreboardMode'))}</th><th scope="col">${escapeHtml(t('scoreboardResult'))}</th></tr></thead><tbody>${rows}</tbody></table></div>` : `<p>${escapeHtml(t('scoreboardEmpty'))}</p>`;
+  app.innerHTML = screenShell(t('scoreboardTitle'), t('scoreboardLead'), `<div class="panel">${table}<div class="button-list">${button(t('backToMenu'), 'back-menu', 'class="secondary"')}</div></div>`);
 }
 
 function boardPileAt(row, column) {
@@ -255,10 +272,14 @@ function syncNavigationDom() {
   }
 }
 
+function isRecordGame() { return game?.mode === 'record'; }
+
 function renderGame() {
   const names = [t('foundationNorth'), t('foundationEast'), t('foundationSouth'), t('foundationWest')];
   const corners = [t('cornerNorthWest'), t('cornerNorthEast'), t('cornerSouthEast'), t('cornerSouthWest')];
   const statusText = game.status === 'won' ? t('victory') : game.status === 'blocked' ? t('blocked') : t('instructions');
+  const gameTitle = isRecordGame() ? t('recordGameTitle') : t('gameTitle');
+  const scoreText = isRecordGame() ? `<p class="game-score" aria-live="polite">${escapeHtml(t('scoreLabel', game.score))}</p>` : '';
   handFocusIndex = game.hand.length ? Math.min(handFocusIndex, game.hand.length - 1) : 0;
   const hand = game.hand.map((card, index) => {
     const isSelected = selected?.zone === 'hand' && selected.index === index;
@@ -284,7 +305,7 @@ function renderGame() {
   const mobileNavigation = `<section class="mobile-section-navigation" aria-labelledby="mobile-navigation-heading"><h2 id="mobile-navigation-heading">${escapeHtml(t('sectionNavigation'))}</h2><nav class="mobile-section-nav-list" aria-label="${escapeHtml(t('sectionNavigation'))}">${button(t('boardSection'), 'mobile-section', `class="secondary" data-section="board" aria-controls="board-section-heading" aria-pressed="${mobileSection === 'board'}"`)}${button(t('handSection'), 'mobile-section', `class="secondary" data-section="hand" aria-controls="hand-section-heading" aria-pressed="${mobileSection === 'hand'}"`)}${button(t('controlsSection'), 'mobile-section', `class="secondary" data-section="controls" aria-controls="controls-section-heading" aria-pressed="${mobileSection === 'controls'}"`)}</nav></section>`;
   const currentSectionHeading = `<h2 id="mobile-current-section" class="mobile-current-section" tabindex="-1">${escapeHtml(t('currentSection', mobileSection === 'board' ? t('boardSection') : mobileSection === 'hand' ? t('handSection') : t('controlsSection')))}</h2>`;
   app.innerHTML = `<div class="screen">
-    <header class="game-header"><div><h1>${escapeHtml(t('gameTitle'))}</h1><p id="game-instructions" class="game-status">${escapeHtml(statusText)}</p></div><div class="inline-actions desktop-controls">${button(t('undo'), 'undo', 'class="secondary" tabindex="-1" aria-keyshortcuts="Control+Z"')} ${button(t('newGameShort'), 'new-game', 'class="secondary" tabindex="-1"')} ${button(t('menu'), 'back-menu', 'class="secondary" tabindex="-1" aria-keyshortcuts="Escape"')}</div></header>
+    <header class="game-header"><div><h1>${escapeHtml(gameTitle)}</h1><p id="game-instructions" class="game-status">${escapeHtml(statusText)}</p>${scoreText}</div><div class="inline-actions desktop-controls">${button(t('undo'), 'undo', 'class="secondary" tabindex="-1" aria-keyshortcuts="Control+Z"')} ${button(t('newGameShort'), 'new-game', 'class="secondary" tabindex="-1"')} ${button(t('menu'), 'back-menu', 'class="secondary" tabindex="-1" aria-keyshortcuts="Escape"')}</div></header>
     <div class="game-layout">
       ${mobileNavigation}
       ${currentSectionHeading}
@@ -398,11 +419,64 @@ function render() {
   if (screen === 'help') renderHelp();
   if (screen === 'game-menu') renderGameMenu();
   if (screen === 'new-game') renderNewGame();
+  if (screen === 'mural') renderMural();
   if (screen === 'game') renderGame();
   bindActions();
   setupArrowNavigation();
   bindGameZones();
   restoreFocus(previousFocus);
+}
+
+function scoreMove(before, source, destination, moved) {
+  if (!isRecordGame()) return;
+  const cardPoints = moved.reduce((sum, card) => sum + card.rank, 0);
+  if (source.zone === 'hand') {
+    game.usedCardPoints += cardPoints;
+    game.score += cardPoints;
+  }
+  if (source.zone !== 'hand' && moved.length >= 2) {
+    const destinationPileBefore = before[destination.zone === 'foundation' ? 'foundations' : 'corners'][destination.index];
+    if (destinationPileBefore.length > 0) {
+      game.stackBonuses += 5;
+      game.score += 5;
+    }
+  }
+  const sourceKey = `${source.zone}:${source.index}`;
+  const destinationKey = `${destination.zone}:${destination.index}`;
+  const movedIds = moved.map((card) => card.id);
+  const repeatedReturn = game.moveLog.some((entry) => entry.source === destinationKey && entry.destination === sourceKey && JSON.stringify(entry.movedIds) === JSON.stringify(movedIds));
+  if (repeatedReturn) {
+    game.cyclePenalties += 5;
+    game.score -= 5;
+  }
+  game.moveLog.push({ movedIds, source: sourceKey, destination: destinationKey });
+}
+
+function scoreInvalidMove() {
+  if (!isRecordGame() || game.status !== 'playing') return;
+  game.invalidMoves += 1;
+  game.score -= 3;
+}
+
+function saveScoreIfNeeded() {
+  if (!isRecordGame() || game.scoreSaved || !['won', 'blocked'].includes(game.status)) return;
+  const entries = scoreboardEntries();
+  entries.push({ score: game.score, mode: locale === 'pt-BR' ? 'Record solo' : 'Solo record', result: game.status === 'won' ? t('scoreboardVictory') : t('scoreboardDefeat'), date: new Date().toISOString() });
+  entries.sort((a, b) => Number(b.score) - Number(a.score));
+  localStorage.setItem(SCOREBOARD_KEY, JSON.stringify(entries.slice(0, 3)));
+  game.scoreSaved = true;
+}
+
+function awardResultIfNeeded() {
+  if (!isRecordGame() || game.resultAwarded || !['won', 'blocked'].includes(game.status)) return;
+  game.score += game.status === 'won' ? 100 : -100;
+  game.resultAwarded = true;
+  saveScoreIfNeeded();
+}
+
+function announceResult() {
+  if (!isRecordGame() || !['won', 'blocked'].includes(game.status)) return;
+  announce(t('resultScore', game.status === 'won' ? t('victory') : t('blocked'), game.score), game.status === 'won' ? 'victory' : 'error');
 }
 
 function selectHand(index) {
@@ -421,17 +495,27 @@ function selectPile(zone, index) {
   const pile = zone === 'foundation' ? game.foundations[index] : game.corners[index];
   if (selected) {
     const before = cloneGame(game);
+    const source = { ...selected };
+    const sourcePileBefore = source.zone === 'hand' ? before.hand : before[source.zone === 'foundation' ? 'foundations' : 'corners'][source.index];
+    const movedCards = source.zone === 'hand' ? [sourcePileBefore[source.index]] : [...sourcePileBefore];
     const moved = moveSelected(game, selected, { zone, index });
     if (moved) {
       history.push(before);
-      const moveSound = selected?.zone === 'hand' ? 'cardPlay' : 'stackMove';
+      scoreMove(before, source, { zone, index }, movedCards);
+      updateBlockedStatus(game);
+      awardResultIfNeeded();
+      const moveSound = source.zone === 'hand' ? 'cardPlay' : 'stackMove';
       selected = null;
+      saveScoreIfNeeded();
       saveGame();
       render();
-      if (game.status === 'won') announce(t('victory'), 'victory');
+      if (['won', 'blocked'].includes(game.status)) announceResult();
       else announce(boardCellAnnouncement(boardFocus.row, boardFocus.column), moveSound);
     } else {
+      scoreInvalidMove();
+      saveGame();
       announce(zone === 'corner' && pile.length === 0 ? t('invalidCorner') : t('invalidMove'), 'error');
+      render();
     }
     return;
   }
@@ -451,27 +535,42 @@ function handleDraw() {
     return;
   }
   history.push(before);
-  saveGame();
-  announce(t('cardDrawn'), 'cardDraw');
+  if (isRecordGame() && card.rank !== 13) {
+    game.drawnCardPoints += card.rank;
+    game.score -= card.rank;
+  }
   updateBlockedStatus(game);
+  awardResultIfNeeded();
+  saveScoreIfNeeded();
+  saveGame();
+  if (game.status === 'blocked') announceResult();
+  else announce(t('cardDrawn'), 'cardDraw');
   render();
 }
 
 function undo() {
+  if (game?.status !== 'playing') {
+    announce(t('nothingToUndo'), 'error');
+    return;
+  }
   const previous = history.pop();
   if (!previous) {
     announce(t('nothingToUndo'), 'error');
     return;
   }
   game = previous;
+  if (isRecordGame()) {
+    game.undoCount = (game.undoCount || 0) + 1;
+    game.score -= 10;
+  }
   selected = null;
   saveGame();
   announce(t('moveMade'), 'cardCancel');
   render();
 }
 
-function startClassic() {
-  game = createGame();
+function startGame(mode) {
+  game = createGame(mode);
   history = [];
   selected = null;
   mobileSection = 'board';
@@ -480,6 +579,9 @@ function startClassic() {
   announce(t('gameSaved'), 'confirm');
   render();
 }
+
+function startClassic() { startGame('training'); }
+function startRecordSolo() { startGame('record'); }
 
 function chooseLanguage(value) {
   locale = value;
@@ -504,6 +606,7 @@ function bindActions() {
       const action = element.dataset.action;
       if (action === 'choose-language') return chooseLanguage(element.dataset.locale);
       if (action === 'menu-start') { screen = 'game-menu'; playSound('menuOpen'); render(); return; }
+      if (action === 'menu-mural') { screen = 'mural'; playSound('menuOpen'); render(); return; }
       if (action === 'menu-options') { screen = 'options'; playSound('menuOpen'); render(); return; }
       if (action === 'menu-help') { previousScreen = screen; screen = 'help'; playSound('menuOpen'); render(); return; }
       if (action === 'mobile-section') {
@@ -519,6 +622,8 @@ function bindActions() {
       if (action === 'continue-game' && game) { screen = 'game'; selected = null; playSound('menuOpen'); render(); return; }
       if (action === 'new-game') { screen = 'new-game'; selected = null; playSound('menuOpen'); render(); return; }
       if (action === 'start-classic') return startClassic();
+      if (action === 'start-training') return startClassic();
+      if (action === 'start-record') return startRecordSolo();
       if (action === 'toggle-soundEnabled') return toggleSetting('soundEnabled');
       if (action === 'toggle-highContrast') return toggleSetting('highContrast');
       if (action === 'toggle-largeText') return toggleSetting('largeText');
@@ -639,7 +744,7 @@ function handleArrowKeyOutsideGroup(event) {
 
 document.addEventListener('keydown', (event) => {
   if (handleArrowKeyOutsideGroup(event)) return;
-  if (event.key === 'Escape' && ['options', 'credits', 'game-menu', 'new-game', 'help'].includes(screen)) {
+  if (event.key === 'Escape' && ['options', 'credits', 'game-menu', 'new-game', 'mural', 'help'].includes(screen)) {
     event.preventDefault();
     const targetScreen = screen === 'new-game' ? 'game-menu' : screen === 'help' ? previousScreen : 'menu';
     screen = targetScreen;
