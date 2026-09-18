@@ -80,6 +80,7 @@ export function createGame(modeOrRandom = 'training', maybeRandom = Math.random)
     undoCount: 0,
     resultAwarded: false,
     scoreSaved: false,
+    scoredKingIds: [],
     moveLog: [],
   };
 }

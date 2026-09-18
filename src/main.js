@@ -54,7 +54,7 @@ function loadGame() {
     return {
       mode: 'training', score: 0, usedCardPoints: 0, drawnCardPoints: 0,
       invalidMoves: 0, stackBonuses: 0, cyclePenalties: 0, undoCount: 0,
-      resultAwarded: false, scoreSaved: false, moveLog: [], ...saved,
+      resultAwarded: false, scoreSaved: false, scoredKingIds: [], moveLog: [], ...saved,
     };
   } catch {
     return null;
@@ -446,17 +446,25 @@ function render() {
 
 function scoreMove(before, source, destination, moved) {
   if (!isRecordGame()) return;
+  if (!game.scoredKingIds) game.scoredKingIds = [];
   const cardPoints = moved.reduce((sum, card) => sum + card.rank, 0);
   if (source.zone === 'hand') {
     game.usedCardPoints += cardPoints;
     game.score += cardPoints;
+    moved.filter((card) => card.rank === 13).forEach((card) => {
+      if (!game.scoredKingIds.includes(card.id)) game.scoredKingIds.push(card.id);
+    });
   }
-  if (source.zone !== 'hand' && moved.length >= 2) {
-    const destinationPileBefore = before[destination.zone === 'foundation' ? 'foundations' : 'corners'][destination.index];
-    if (destinationPileBefore.length > 0) {
-      game.stackBonuses += 5;
-      game.score += 5;
-    }
+  const destinationPilesBefore = before[destination.zone === 'foundation' ? 'foundations' : 'corners'];
+  const destinationPileBefore = destinationPilesBefore[destination.index];
+  if (source.zone !== 'hand' && destination.zone === 'corner' && destinationPileBefore.length === 0 && moved[0]?.rank === 13 && !game.scoredKingIds.includes(moved[0].id)) {
+    game.score += 13;
+    game.usedCardPoints += 13;
+    game.scoredKingIds.push(moved[0].id);
+  }
+  if (source.zone !== 'hand' && moved.length >= 2 && destinationPileBefore.length > 0) {
+    game.stackBonuses += 5;
+    game.score += 5;
   }
   const sourceKey = `${source.zone}:${source.index}`;
   const destinationKey = `${destination.zone}:${destination.index}`;
@@ -576,7 +584,9 @@ function undo() {
     announce(t('nothingToUndo'), 'error');
     return;
   }
+  const scoredKingIdsBeforeUndo = [...(game.scoredKingIds || [])];
   game = previous;
+  game.scoredKingIds = [...new Set([...(game.scoredKingIds || []), ...scoredKingIdsBeforeUndo])];
   if (isRecordGame()) {
     game.undoCount = (game.undoCount || 0) + 1;
     game.score -= 10;
