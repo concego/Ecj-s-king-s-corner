@@ -177,7 +177,7 @@ function renderGameMenu() {
 
 function renderNewGame() {
   app.innerHTML = screenShell(t('styleTitle'), '', `<div class="panel">
-    <fieldset>
+    <fieldset class="setting-list">
       <legend><strong>${escapeHtml(t('styleTitle'))}</strong></legend>
       <div class="setting"><div><strong>${escapeHtml(t('classic'))}</strong><small>${escapeHtml(t('classicDescription'))}</small></div>${button(t('startClassic'), 'start-training')}</div>
       <div class="setting"><div><strong>${escapeHtml(t('recordSolo'))}</strong><small>${escapeHtml(t('recordSoloDescription'))}</small></div>${button(t('startRecordSolo'), 'start-record')}</div>
