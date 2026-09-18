@@ -113,6 +113,8 @@ h2 { margin-top: 0; }
 
 .game-header { display: flex; justify-content: space-between; gap: 1rem; align-items: start; flex-wrap: wrap; }
 .game-status { color: var(--muted); }
+.game-score { margin: 0.5rem 0 0; font-size: 1.1rem; }
+.score-breakdown { max-width: 60ch; color: var(--muted); }
 
 .game-layout { display: grid; gap: 1.25rem; }
 .mobile-accordion { display: contents; }

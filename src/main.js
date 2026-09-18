@@ -189,13 +189,28 @@ function renderNewGame() {
 function scoreboardEntries() {
   try {
     const entries = JSON.parse(localStorage.getItem(SCOREBOARD_KEY) || '[]');
-    return Array.isArray(entries) ? entries.filter((entry) => Number.isFinite(Number(entry.score))).slice(0, 3) : [];
+    if (!Array.isArray(entries)) return [];
+    return entries
+      .filter((entry) => Number.isFinite(Number(entry.score)))
+      .sort((a, b) => Number(b.score) - Number(a.score))
+      .slice(0, 3);
   } catch { return []; }
+}
+
+function scoreboardModeLabel(mode) {
+  if (mode === 'record' || mode === 'Record solo' || mode === 'Solo record') return t('recordSolo');
+  return mode || '';
+}
+
+function scoreboardResultLabel(result) {
+  if (result === 'victory' || result === 'Vitória' || result === 'Victory') return t('scoreboardVictory');
+  if (result === 'defeat' || result === 'Derrota' || result === 'Defeat') return t('scoreboardDefeat');
+  return result || '';
 }
 
 function renderMural() {
   const entries = scoreboardEntries();
-  const rows = entries.map((entry, index) => `<tr><td>${index + 1}</td><td>${escapeHtml(String(entry.score))}</td><td>${escapeHtml(entry.mode || '')}</td><td>${escapeHtml(entry.result || '')}</td></tr>`).join('');
+  const rows = entries.map((entry, index) => `<tr><th scope="row">${index + 1}</th><td>${escapeHtml(String(entry.score))}</td><td>${escapeHtml(scoreboardModeLabel(entry.mode))}</td><td>${escapeHtml(scoreboardResultLabel(entry.result))}</td></tr>`).join('');
   const table = entries.length ? `<div class="table-wrapper"><table><caption>${escapeHtml(t('scoreboardTitle'))}</caption><thead><tr><th scope="col">${escapeHtml(t('scoreboardPosition'))}</th><th scope="col">${escapeHtml(t('scoreboardPoints'))}</th><th scope="col">${escapeHtml(t('scoreboardMode'))}</th><th scope="col">${escapeHtml(t('scoreboardResult'))}</th></tr></thead><tbody>${rows}</tbody></table></div>` : `<p>${escapeHtml(t('scoreboardEmpty'))}</p>`;
   app.innerHTML = screenShell(t('scoreboardTitle'), t('scoreboardLead'), `<div class="panel">${table}<div class="button-list">${button(t('backToMenu'), 'back-menu', 'class="secondary"')}</div></div>`);
 }
@@ -279,7 +294,9 @@ function renderGame() {
   const corners = [t('cornerNorthWest'), t('cornerNorthEast'), t('cornerSouthEast'), t('cornerSouthWest')];
   const statusText = game.status === 'won' ? t('victory') : game.status === 'blocked' ? t('blocked') : t('instructions');
   const gameTitle = isRecordGame() ? t('recordGameTitle') : t('gameTitle');
+  const undoExtra = `class="secondary" aria-keyshortcuts="Control+Z" ${game.status !== 'playing' ? 'disabled' : ''}`;
   const scoreText = isRecordGame() ? `<p class="game-score" aria-live="polite">${escapeHtml(t('scoreLabel', game.score))}</p>` : '';
+  const scoreDetails = isRecordGame() && game.status !== 'playing' ? `<p class="score-breakdown">${escapeHtml(t('scoreBreakdown', game.usedCardPoints, -game.drawnCardPoints, game.invalidMoves * 3, game.stackBonuses * 5, game.cyclePenalties * 5, game.undoCount * 10))}</p>` : '';
   handFocusIndex = game.hand.length ? Math.min(handFocusIndex, game.hand.length - 1) : 0;
   const hand = game.hand.map((card, index) => {
     const isSelected = selected?.zone === 'hand' && selected.index === index;
@@ -288,7 +305,7 @@ function renderGame() {
   }).join('');
   const stockLabel = t('stockLabel', game.stock.length);
   const stock = `<div class="pile-button area-stock${game.status !== 'playing' || !game.stock.length ? ' empty' : ''}" role="gridcell" id="board-cell-1-1" data-action="draw" data-row="1" data-column="1" aria-disabled="${game.status !== 'playing' || !game.stock.length}" aria-label="${escapeHtml(stockLabel)}">${game.stock.length ? cardSvg(null, true) : `<span>${escapeHtml(t('emptyPile'))}</span>`}<span class="pile-label" aria-hidden="true">${escapeHtml(t('stock'))}</span></div>`;
-  const board = `<div class="board" role="grid" tabindex="0" data-focus-zone="board" aria-label="${escapeHtml(t('gameTitle'))}">
+  const board = `<div class="board" role="grid" tabindex="0" data-focus-zone="board" aria-label="${escapeHtml(gameTitle)}">
     ${pileButton('corner', 0, corners[0], game.corners[0], 'area-nw', 0, 0)}
     ${pileButton('foundation', 0, names[0], game.foundations[0], 'area-north', 0, 1)}
     ${pileButton('corner', 1, corners[1], game.corners[1], 'area-ne', 0, 2)}
@@ -301,11 +318,11 @@ function renderGame() {
   </div>`;
   const boardSection = `<section class="mobile-game-section board-section${mobileSection === 'board' ? '' : ' mobile-section-hidden'}" data-mobile-section="board" aria-labelledby="board-section-heading"><h2 id="board-section-heading" class="mobile-section-title">${escapeHtml(t('boardSection'))}</h2>${board}</section>`;
   const handSection = `<section class="mobile-game-section hand-section-wrapper${mobileSection === 'hand' ? '' : ' mobile-section-hidden'}" data-mobile-section="hand" aria-labelledby="hand-section-heading"><h2 id="hand-section-heading" class="mobile-section-title">${escapeHtml(t('handSection'))}</h2><section class="hand-section panel" role="listbox" tabindex="0" data-focus-zone="hand" aria-labelledby="hand-heading" aria-activedescendant="${game.hand.length ? `hand-card-${handFocusIndex}` : ''}"><h3 id="hand-heading">${escapeHtml(t('hand'))} <span class="legend">(${escapeHtml(t('cardsCount', game.hand.length))})</span></h3><div class="hand">${hand || `<p>${escapeHtml(t('victory'))}</p>`}</div></section></section>`;
-  const mobileControls = `<section class="mobile-game-section controls-section${mobileSection === 'controls' ? '' : ' mobile-section-hidden'}" data-mobile-section="controls" aria-labelledby="controls-section-heading"><h2 id="controls-section-heading" class="mobile-section-title">${escapeHtml(t('controlsSection'))}</h2><div class="mobile-control-list">${button(t('backMainMenu'), 'back-menu', 'class="secondary" aria-keyshortcuts="Escape"')}${button(t('help'), 'menu-help', 'class="secondary" aria-keyshortcuts="H"')}${button(t('undo'), 'undo', 'class="secondary" aria-keyshortcuts="Control+Z"')}</div></section>`;
+  const mobileControls = `<section class="mobile-game-section controls-section${mobileSection === 'controls' ? '' : ' mobile-section-hidden'}" data-mobile-section="controls" aria-labelledby="controls-section-heading"><h2 id="controls-section-heading" class="mobile-section-title">${escapeHtml(t('controlsSection'))}</h2><div class="mobile-control-list">${button(t('backMainMenu'), 'back-menu', 'class="secondary" aria-keyshortcuts="Escape"')}${button(t('help'), 'menu-help', 'class="secondary" aria-keyshortcuts="H"')}${button(t('undo'), 'undo', undoExtra)}</div></section>`;
   const mobileNavigation = `<section class="mobile-section-navigation" aria-labelledby="mobile-navigation-heading"><h2 id="mobile-navigation-heading">${escapeHtml(t('sectionNavigation'))}</h2><nav class="mobile-section-nav-list" aria-label="${escapeHtml(t('sectionNavigation'))}">${button(t('boardSection'), 'mobile-section', `class="secondary" data-section="board" aria-controls="board-section-heading" aria-pressed="${mobileSection === 'board'}"`)}${button(t('handSection'), 'mobile-section', `class="secondary" data-section="hand" aria-controls="hand-section-heading" aria-pressed="${mobileSection === 'hand'}"`)}${button(t('controlsSection'), 'mobile-section', `class="secondary" data-section="controls" aria-controls="controls-section-heading" aria-pressed="${mobileSection === 'controls'}"`)}</nav></section>`;
   const currentSectionHeading = `<h2 id="mobile-current-section" class="mobile-current-section" tabindex="-1">${escapeHtml(t('currentSection', mobileSection === 'board' ? t('boardSection') : mobileSection === 'hand' ? t('handSection') : t('controlsSection')))}</h2>`;
   app.innerHTML = `<div class="screen">
-    <header class="game-header"><div><h1>${escapeHtml(gameTitle)}</h1><p id="game-instructions" class="game-status">${escapeHtml(statusText)}</p>${scoreText}</div><div class="inline-actions desktop-controls">${button(t('undo'), 'undo', 'class="secondary" tabindex="-1" aria-keyshortcuts="Control+Z"')} ${button(t('newGameShort'), 'new-game', 'class="secondary" tabindex="-1"')} ${button(t('menu'), 'back-menu', 'class="secondary" tabindex="-1" aria-keyshortcuts="Escape"')}</div></header>
+    <header class="game-header"><div><h1>${escapeHtml(gameTitle)}</h1><p id="game-instructions" class="game-status">${escapeHtml(statusText)}</p>${scoreText}${scoreDetails}</div><div class="inline-actions desktop-controls">${button(t('undo'), 'undo', `${undoExtra} tabindex="-1"`)} ${button(t('newGameShort'), 'new-game', 'class="secondary" tabindex="-1"')} ${button(t('menu'), 'back-menu', 'class="secondary" tabindex="-1" aria-keyshortcuts="Escape"')}</div></header>
     <div class="game-layout">
       ${mobileNavigation}
       ${currentSectionHeading}
@@ -461,7 +478,7 @@ function scoreInvalidMove() {
 function saveScoreIfNeeded() {
   if (!isRecordGame() || game.scoreSaved || !['won', 'blocked'].includes(game.status)) return;
   const entries = scoreboardEntries();
-  entries.push({ score: game.score, mode: locale === 'pt-BR' ? 'Record solo' : 'Solo record', result: game.status === 'won' ? t('scoreboardVictory') : t('scoreboardDefeat'), date: new Date().toISOString() });
+  entries.push({ score: game.score, mode: 'record', result: game.status === 'won' ? 'victory' : 'defeat', date: new Date().toISOString() });
   entries.sort((a, b) => Number(b.score) - Number(a.score));
   localStorage.setItem(SCOREBOARD_KEY, JSON.stringify(entries.slice(0, 3)));
   game.scoreSaved = true;
@@ -492,6 +509,7 @@ function selectHand(index) {
 }
 
 function selectPile(zone, index) {
+  if (game.status !== 'playing') return;
   const pile = zone === 'foundation' ? game.foundations[index] : game.corners[index];
   if (selected) {
     const before = cloneGame(game);
