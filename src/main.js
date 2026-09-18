@@ -647,7 +647,10 @@ function bindActions() {
       if (action === 'toggle-largeText') return toggleSetting('largeText');
       if (action === 'toggle-reducedMotion') return toggleSetting('reducedMotion');
       if (action === 'select-hand') return selectHand(Number(element.dataset.index));
-      if (action === 'select-pile') return selectPile(element.dataset.zone, Number(element.dataset.index));
+      if (action === 'select-pile') {
+        boardFocus = { row: Number(element.dataset.row), column: Number(element.dataset.column) };
+        return selectPile(element.dataset.zone, Number(element.dataset.index));
+      }
       if (action === 'draw') return handleDraw();
       if (action === 'undo') return undo();
     });
