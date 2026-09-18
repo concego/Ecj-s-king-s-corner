@@ -126,7 +126,8 @@ export function moveSelected(game, source, destination) {
   const targetArray = destinationPile(game, destination);
   if (source.zone === destination.zone && source.index === destination.index) return false;
   if (!sourceArray.length) return false;
-  const moving = sourceIsHand ? [sourceArray[source.index]] : sourceArray;
+  // Copy board piles before clearing the source; otherwise splice() would also empty moving.
+  const moving = sourceIsHand ? [sourceArray[source.index]] : [...sourceArray];
   if (!canMoveStack(moving, targetArray, destinationType(destination))) return false;
 
   if (sourceIsHand) sourceArray.splice(source.index, 1);
