@@ -5,7 +5,7 @@ Versão web, solo e bilíngue de **Kings in the Corner**, criada pela Equipe Euc
 - Teste online: [GitHub Pages](https://concego.github.io/Ecj-s-king-s-corner/)
 - Release atual: [v0.1.0](https://github.com/concego/Ecj-s-king-s-corner/releases/tag/v0.1.0)
 
-O projeto começa com uma partida clássica, controles por teclado e cartas desenhadas como SVG inline. A interface é desenvolvida com foco em **WCAG 2.2 nível AA**, sem depender de cor, som, mouse ou arrastar e soltar para transmitir ou executar uma ação.
+O projeto começa com um modo de treino solo, controles por teclado e cartas desenhadas como SVG inline. A interface é desenvolvida com foco em **WCAG 2.2 nível AA**, sem depender de cor, som, mouse ou arrastar e soltar para transmitir ou executar uma ação.
 
 ## Estado atual
 
@@ -13,7 +13,7 @@ O projeto começa com uma partida clássica, controles por teclado e cartas dese
 - Menu inicial com iniciar jogo, opções e créditos.
 - Opções de idioma, sons, alto contraste, texto ampliado e redução de movimento.
 - Menu de jogo com continuar jogo e iniciar novo jogo.
-- Seleção do estilo clássico.
+- Seleção do modo Treino solo.
 - Tabuleiro funcional para a base do Kings in the Corner: mão, monte, quatro pilhas principais, quatro cantos, movimentos, compra, desfazer e salvamento local.
 - Sons procedurais originais em WAV, gerados pelo script Python em `tools/generate_sounds.py`.
 - Seção de ajuda acessível pela tecla `H`, com instruções separadas para teclado e dispositivos móveis.
