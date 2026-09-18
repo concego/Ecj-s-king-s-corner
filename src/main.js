@@ -263,7 +263,7 @@ function boardCellAnnouncement(row, column) {
   if (!pile?.length) return t('boardEmpty', position);
   const first = cardAccessibleName(pile[0], locale);
   const last = cardAccessibleName(pile[pile.length - 1], locale);
-  return pile.length === 1 ? t('boardCard', position, first) : t('boardRange', position, first, last);
+  return pile.length === 1 ? t('boardCard', position, first) : t('boardRange', position, first, last, pile.length);
 }
 
 function syncNavigationDom() {
