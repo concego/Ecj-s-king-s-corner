@@ -2,6 +2,9 @@
 
 Versão web, solo e bilíngue de **Kings in the Corner**, criada pela Equipe Euconcegojogar.
 
+- Teste online: [GitHub Pages](https://concego.github.io/Ecj-s-king-s-corner/)
+- Release atual: [v0.1.0](https://github.com/concego/Ecj-s-king-s-corner/releases/tag/v0.1.0)
+
 O projeto começa com uma partida clássica, controles por teclado e cartas desenhadas como SVG inline. A interface é desenvolvida com foco em **WCAG 2.2 nível AA**, sem depender de cor, som, mouse ou arrastar e soltar para transmitir ou executar uma ação.
 
 ## Estado atual
@@ -13,6 +16,25 @@ O projeto começa com uma partida clássica, controles por teclado e cartas dese
 - Seleção do estilo clássico.
 - Tabuleiro funcional para a base do Kings in the Corner: mão, monte, quatro pilhas principais, quatro cantos, movimentos, compra, desfazer e salvamento local.
 - Sons procedurais originais em WAV, gerados pelo script Python em `tools/generate_sounds.py`.
+- Seção de ajuda acessível pela tecla `H`, com instruções separadas para teclado e dispositivos móveis.
+- Layout móvel responsivo com headings de navegação, seção atual e seleção rápida entre Tabuleiro, Mão e Controles.
+
+## Controles
+
+### Teclado
+
+- `Tab`: alterna entre a mão e o tabuleiro.
+- Setas: navegam pelas cartas da mão e pelas posições do tabuleiro.
+- `Enter`: seleciona ou troca uma carta da mão; joga cartas e move pilhas no tabuleiro; compra no monte.
+- `Ctrl+Z`: desfaz a última jogada.
+- `Escape`: cancela uma seleção ou retorna ao menu.
+- `H`: abre a ajuda.
+
+### Dispositivo móvel
+
+- Toque duplo em cartas da mão, no monte e nas pilhas do tabuleiro para interagir.
+- Os botões **Tabuleiro**, **Mão** e **Controles** trocam rapidamente de seção.
+- **Controles** oferece voltar ao menu principal, abrir a ajuda e desfazer.
 
 ## Executar localmente
 
