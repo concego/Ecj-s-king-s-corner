@@ -54,7 +54,7 @@ O projeto adota WCAG 2.2 AA como referência técnica. A interface inclui:
 - sons opcionais, nunca usados como único feedback;
 - diferenciação das cartas por valor, naipe, texto e cor;
 - layout responsivo para diferentes tamanhos de tela;
-- no celular, seções independentes de tabuleiro, mão e controles em acordeão, com botões para voltar, ajuda e desfazer.
+- no celular, navegação rápida por headings e seletor de três seções: tabuleiro, mão e controles, com botões para voltar, ajuda e desfazer.
 
 ## Créditos
 
