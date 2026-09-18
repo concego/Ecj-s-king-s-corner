@@ -143,12 +143,14 @@ function renderCredits() {
 }
 
 function renderHelp() {
-  const list = ['helpKeyTab', 'helpKeyArrows', 'helpKeyEnter', 'helpKeyUndo', 'helpKeyEscape', 'helpKeyH']
+  const keyboardList = ['helpKeyTab', 'helpKeyArrows', 'helpKeyEnter', 'helpKeyUndo', 'helpKeyEscape', 'helpKeyH']
+    .map((key) => `<li>${escapeHtml(t(key))}</li>`).join('');
+  const mobileList = ['helpMobileCards', 'helpMobileBoard', 'helpMobileStock', 'helpMobileSections']
     .map((key) => `<li>${escapeHtml(t(key))}</li>`).join('');
   app.innerHTML = screenShell(t('helpTitle'), '', `<div class="panel help-content">
     <section aria-labelledby="help-objective"><h2 id="help-objective">${escapeHtml(t('helpObjectiveHeading'))}</h2><p>${escapeHtml(t('helpObjective'))}</p></section>
     <section aria-labelledby="help-how"><h2 id="help-how">${escapeHtml(t('helpHowHeading'))}</h2><p>${escapeHtml(t('helpHow'))}</p></section>
-    <section aria-labelledby="help-keys"><h2 id="help-keys">${escapeHtml(t('helpKeysHeading'))}</h2><ul>${list}</ul></section>
+    <section aria-labelledby="help-keys"><h2 id="help-keys">${escapeHtml(t('helpControlsHeading'))}</h2><h3>${escapeHtml(t('helpKeyboardHeading'))}</h3><ul>${keyboardList}</ul><h3>${escapeHtml(t('helpMobileHeading'))}</h3><ul>${mobileList}</ul></section>
     <section aria-labelledby="help-colors"><h2 id="help-colors">${escapeHtml(t('helpColorsHeading'))}</h2><p>${escapeHtml(t('helpColors'))}</p></section>
     <div class="button-list">${button(t('back'), 'back-help', 'class="secondary"')}</div>
   </div>`);
