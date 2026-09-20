@@ -150,7 +150,7 @@ function renderCredits() {
 }
 
 function renderHelp() {
-  const keyboardList = ['helpKeyTab', 'helpKeyArrows', 'helpKeyEnter', 'helpKeyUndo', 'helpKeyEscape', 'helpKeyH']
+  const keyboardList = ['helpKeyTab', 'helpKeyArrows', 'helpKeyEnter', 'helpKeyUndo', 'helpKeyEscape', 'helpKeyH', 'helpKeyScore']
     .map((key) => `<li>${escapeHtml(t(key))}</li>`).join('');
   const mobileList = ['helpMobileCards', 'helpMobileBoard', 'helpMobileStock', 'helpMobileSections']
     .map((key) => `<li>${escapeHtml(t(key))}</li>`).join('');
@@ -318,7 +318,7 @@ function renderGame() {
   </div>`;
   const boardSection = `<section class="mobile-game-section board-section${mobileSection === 'board' ? '' : ' mobile-section-hidden'}" data-mobile-section="board" aria-labelledby="board-section-heading"><h2 id="board-section-heading" class="mobile-section-title">${escapeHtml(t('boardSection'))}</h2>${board}</section>`;
   const handSection = `<section class="mobile-game-section hand-section-wrapper${mobileSection === 'hand' ? '' : ' mobile-section-hidden'}" data-mobile-section="hand" aria-labelledby="hand-section-heading"><h2 id="hand-section-heading" class="mobile-section-title">${escapeHtml(t('handSection'))}</h2><section class="hand-section panel" role="listbox" tabindex="0" data-focus-zone="hand" aria-labelledby="hand-heading" aria-activedescendant="${game.hand.length ? `hand-card-${handFocusIndex}` : ''}"><h3 id="hand-heading">${escapeHtml(t('hand'))} <span class="legend">(${escapeHtml(t('cardsCount', game.hand.length))})</span></h3><div class="hand">${hand || `<p>${escapeHtml(t('victory'))}</p>`}</div></section></section>`;
-  const mobileControls = `<section class="mobile-game-section controls-section${mobileSection === 'controls' ? '' : ' mobile-section-hidden'}" data-mobile-section="controls" aria-labelledby="controls-section-heading"><h2 id="controls-section-heading" class="mobile-section-title">${escapeHtml(t('controlsSection'))}</h2><div class="mobile-control-list">${button(t('backMainMenu'), 'back-menu', 'class="secondary" aria-keyshortcuts="Escape"')}${button(t('help'), 'menu-help', 'class="secondary" aria-keyshortcuts="H"')}${button(t('undo'), 'undo', undoExtra)}</div></section>`;
+  const mobileControls = `<section class="mobile-game-section controls-section${mobileSection === 'controls' ? '' : ' mobile-section-hidden'}" data-mobile-section="controls" aria-labelledby="controls-section-heading"><h2 id="controls-section-heading" class="mobile-section-title">${escapeHtml(t('controlsSection'))}</h2><div class="mobile-control-list">${button(t('backMainMenu'), 'back-menu', 'class="secondary" aria-keyshortcuts="Escape"')}${button(t('help'), 'menu-help', 'class="secondary" aria-keyshortcuts="H"')}${isRecordGame() ? button(t('checkScore'), 'check-score', 'class="secondary" aria-keyshortcuts="S"') : ''}${button(t('undo'), 'undo', undoExtra)}</div></section>`;
   const mobileNavigation = `<section class="mobile-section-navigation" aria-labelledby="mobile-navigation-heading"><h2 id="mobile-navigation-heading">${escapeHtml(t('sectionNavigation'))}</h2><nav class="mobile-section-nav-list" aria-label="${escapeHtml(t('sectionNavigation'))}">${button(t('boardSection'), 'mobile-section', `class="secondary" data-section="board" aria-controls="board-section-heading" aria-pressed="${mobileSection === 'board'}"`)}${button(t('handSection'), 'mobile-section', `class="secondary" data-section="hand" aria-controls="hand-section-heading" aria-pressed="${mobileSection === 'hand'}"`)}${button(t('controlsSection'), 'mobile-section', `class="secondary" data-section="controls" aria-controls="controls-section-heading" aria-pressed="${mobileSection === 'controls'}"`)}</nav></section>`;
   const currentSectionHeading = `<h2 id="mobile-current-section" class="mobile-current-section" tabindex="-1">${escapeHtml(t('currentSection', mobileSection === 'board' ? t('boardSection') : mobileSection === 'hand' ? t('handSection') : t('controlsSection')))}</h2>`;
   app.innerHTML = `<div class="screen">
@@ -504,6 +504,11 @@ function announceResult() {
   announce(t('resultScore', game.status === 'won' ? t('victory') : t('blocked'), game.score), game.status === 'won' ? 'victory' : 'error');
 }
 
+function checkScore() {
+  if (!isRecordGame()) return;
+  announce(t('scoreLabel', game.score), 'confirm');
+}
+
 function selectHand(index) {
   if (game.status !== 'playing') return;
   if (selected?.zone === 'hand' && selected.index === index) {
@@ -662,6 +667,7 @@ function bindActions() {
         return selectPile(element.dataset.zone, Number(element.dataset.index));
       }
       if (action === 'draw') return handleDraw();
+      if (action === 'check-score') return checkScore();
       if (action === 'undo') return undo();
     });
     element.addEventListener('focus', () => playSound('menuFocus'));
@@ -788,6 +794,11 @@ document.addEventListener('keydown', (event) => {
     previousScreen = screen;
     screen = 'help';
     render();
+    return;
+  }
+  if (screen === 'game' && isRecordGame() && !event.ctrlKey && !event.altKey && !event.metaKey && event.key.toLowerCase() === 's') {
+    event.preventDefault();
+    checkScore();
     return;
   }
   if (screen !== 'game') return;
