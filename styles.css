@@ -127,6 +127,7 @@ h2 { margin-top: 0; }
 .bot-option-cell { min-width: 0; }
 .bot-option-cell button { width: 100%; }
 .bot-option-mobile-label { display: none; }
+.bot-selection-return { display: flex; justify-content: flex-start; margin-top: 0.35rem; }
 
 .game-header { display: flex; justify-content: space-between; gap: 1rem; align-items: start; flex-wrap: wrap; }
 .game-status { color: var(--muted); }

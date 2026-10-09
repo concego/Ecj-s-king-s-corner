@@ -1,4 +1,4 @@
-import { getText } from './i18n.js?v=bot-setup-menu-1';
+import { getText } from './i18n.js?v=bot-selection-fixes-1';
 import { playSound, setAudioEnabled } from './audio.js';
 import {
   RANK_BY_VALUE,
@@ -20,6 +20,7 @@ const status = document.querySelector('#status');
 const SAVED_GAME_KEY = 'ecj-kings-corner-game';
 const SETTINGS_KEY = 'ecj-kings-corner-settings';
 const SCOREBOARD_KEY = 'ecj-kings-corner-scoreboard';
+const SELECTED_BOTS_KEY = 'ecj-kings-corner-selected-bots';
 
 let locale = localStorage.getItem('ecj-kings-corner-locale');
 let settings = loadSettings();
@@ -35,7 +36,7 @@ let selectedBotIds = loadSelectedBots();
 
 function loadSelectedBots() {
   try {
-    const saved = JSON.parse(localStorage.getItem('ecj-kings-corner-selected-bots') || '[]');
+    const saved = JSON.parse(localStorage.getItem(SELECTED_BOTS_KEY) || '[]');
     return Array.isArray(saved) ? saved.filter((id) => ['lion', 'dog', 'fox'].includes(id)) : [];
   } catch {
     return [];
@@ -212,25 +213,32 @@ function renderBotMatchSetup() {
   </div>`);
 }
 
+function openBotMatchSetup() {
+  selectedBotIds = [];
+  localStorage.setItem(SELECTED_BOTS_KEY, '[]');
+  screen = 'bot-match-setup';
+  playSound('menuOpen');
+  render();
+}
+
 function renderBotSelection() {
   const options = BOT_IDS.map((id, index) => {
     const name = t(`bot${id[0].toUpperCase()}${id.slice(1)}`);
     const selectedNow = selectedBotIds.includes(id);
     const personality = t(`bot${id[0].toUpperCase()}${id.slice(1)}Personality`);
-    const alt = t(`bot${id[0].toUpperCase()}${id.slice(1)}Alt`);
     return `<div class="bot-option" role="row" aria-label="${escapeHtml(name)}" data-bot-option-index="${index}">
-      <div class="bot-option-profile" role="rowheader"><img class="bot-portrait" src="./assets/bots/${id}.webp" alt="" aria-hidden="true" role="presentation" width="240" height="240"><span class="sr-only" role="img" aria-label="${escapeHtml(alt)}"></span><div><strong>${escapeHtml(name)}</strong><p>${escapeHtml(personality)}</p></div></div>
+      <div class="bot-option-profile" role="rowheader"><img class="bot-portrait" src="./assets/bots/${id}.webp" alt="" aria-hidden="true" role="presentation" width="240" height="240"><div><strong>${escapeHtml(name)}</strong><p>${escapeHtml(personality)}</p></div></div>
       <div class="bot-option-cell" role="cell"><span class="bot-option-mobile-label">${escapeHtml(t('botPhysicalDescriptionColumn'))}</span>${button(t('readBotAppearance', name, id), 'read-bot-appearance', `class="secondary" data-bot-id="${id}"`)}</div>
       <div class="bot-option-cell" role="cell"><span class="bot-option-mobile-label">${escapeHtml(t('botSelectionColumn'))}</span>${button(selectedNow ? t('deselectBot', name) : t('selectBot', name), 'toggle-bot-selection', `class="${selectedNow ? '' : 'secondary'}" data-bot-id="${id}" aria-pressed="${selectedNow}"`)}</div>
     </div>`;
   }).join('');
-  app.innerHTML = screenShell(t('botSelectionTitle'), t('botSelectionLead'), `<div class="panel bot-selection-list"><p class="legend">${escapeHtml(t('botSelectionCount', selectedBotIds.length))}</p><div class="bot-option-table" role="table" aria-label="${escapeHtml(t('botSelectionTitle'))}"><div class="bot-option-head" role="row"><span role="columnheader">${escapeHtml(t('botColumnName'))}</span><span role="columnheader">${escapeHtml(t('botPhysicalDescriptionColumn'))}</span><span role="columnheader">${escapeHtml(t('botSelectionColumn'))}</span></div><div role="rowgroup">${options}</div></div><div class="inline-actions">${button(t('back'), 'back-bot-selection', 'class="secondary"')}</div></div>`);
+  app.innerHTML = screenShell(t('botSelectionTitle'), t('botSelectionLead'), `<div class="panel bot-selection-list"><p class="legend">${escapeHtml(t('botSelectionCount', selectedBotIds.length))}</p><div class="bot-option-table" role="table" aria-label="${escapeHtml(t('botSelectionTitle'))}"><div class="bot-option-head" role="row"><span role="columnheader">${escapeHtml(t('botColumnName'))}</span><span role="columnheader">${escapeHtml(t('botPhysicalDescriptionColumn'))}</span><span role="columnheader">${escapeHtml(t('botSelectionColumn'))}</span></div><div role="rowgroup">${options}</div></div><div class="bot-selection-return">${button(t('back'), 'back-bot-selection', 'class="secondary"')}</div></div>`, false);
 }
 
 function toggleBotSelection(id) {
   if (!BOT_IDS.includes(id)) return;
   selectedBotIds = selectedBotIds.includes(id) ? selectedBotIds.filter((item) => item !== id) : [...selectedBotIds, id];
-  localStorage.setItem('ecj-kings-corner-selected-bots', JSON.stringify(selectedBotIds));
+  localStorage.setItem(SELECTED_BOTS_KEY, JSON.stringify(selectedBotIds));
   announce(t('botSelectionCount', selectedBotIds.length), 'confirm');
   render();
 }
@@ -961,7 +969,7 @@ function bindActions() {
       if (action === 'start-classic') return startClassic();
       if (action === 'start-training') return startClassic();
       if (action === 'start-record') return startRecordSolo();
-      if (action === 'open-bot-setup') { screen = 'bot-match-setup'; playSound('menuOpen'); render(); return; }
+      if (action === 'open-bot-setup') return openBotMatchSetup();
       if (action === 'open-bot-selection') { screen = 'bot-selection'; playSound('menuOpen'); render(); return; }
       if (action === 'toggle-bot-selection') return toggleBotSelection(element.dataset.botId);
       if (action === 'read-bot-appearance') return readBotAppearance(element.dataset.botId);
