@@ -1,4 +1,4 @@
-import { getText } from './i18n.js?v=bot-turn-fix-9';
+import { getText } from './i18n.js?v=bot-turn-action-1';
 import { playSound, setAudioEnabled } from './audio.js';
 import {
   RANK_BY_VALUE,
@@ -68,7 +68,7 @@ function loadGame() {
     return {
       mode: 'training', score: 0, usedCardPoints: 0, drawnCardPoints: 0,
       invalidMoves: 0, stackBonuses: 0, cyclePenalties: 0, undoCount: 0,
-      resultAwarded: false, scoreSaved: false, scoredKingIds: [], moveLog: [], ...saved,
+      resultAwarded: false, scoreSaved: false, scoredKingIds: [], moveLog: [], turnActionCount: 0, ...saved,
     };
   } catch {
     return null;
@@ -582,6 +582,7 @@ function selectPile(zone, index) {
     const moved = moveSelected(game, selected, { zone, index });
     if (moved) {
       history.push(before);
+      if (game.mode === 'bots' && isHumanTurn()) game.turnActionCount = (game.turnActionCount || 0) + 1;
       scoreMove(before, source, { zone, index }, movedCards);
       if (game.mode !== 'bots') updateBlockedStatus(game);
       if (game.mode === 'bots' && game.hand.length === 0) { game.status = 'won'; game.winnerId = 'human'; }
@@ -619,7 +620,10 @@ function handleDraw() {
     return;
   }
   history.push(before);
-  if (game.mode === 'bots') game.turnDrew = true;
+  if (game.mode === 'bots') {
+    game.turnDrew = true;
+    game.turnActionCount = (game.turnActionCount || 0) + 1;
+  }
   if (isRecordGame() && card.rank !== 13) {
     game.drawnCardPoints += card.rank;
     game.score -= card.rank;
@@ -693,11 +697,18 @@ function checkBotMatchBlocked() {
 
 function passHumanTurn() {
   if (game?.mode !== 'bots' || game.status !== 'playing' || !isHumanTurn()) return;
+  const hasLegalAction = hasLegalHandMove(game) || hasLegalPileMove(game);
+  const didSomething = (game.turnActionCount || 0) > 0 || game.turnDrew;
+  if (!didSomething && (game.stock.length > 0 || hasLegalAction)) {
+    announce(t('mustActBeforePass'), 'error');
+    return;
+  }
   selected = null;
   mobileSection = 'board';
   game.activeTurn = 1;
   game.activeBotId = game.botPlayers[0].id;
   game.turnDrew = false;
+  game.turnActionCount = 0;
   saveGame(); render();
   runBotTurn(1, 0);
 }
@@ -713,14 +724,29 @@ function runBotTurn(turnIndex, initialSteps = 0) {
     const bot = game.botPlayers[currentTurn - 1];
     game.activeTurn = currentTurn;
     game.activeBotId = bot.id;
+    game.turnActionCount = 0;
     render();
     announce(t('botTurn', botName(bot.id)));
 
     let steps = currentTurn === turnIndex ? initialSteps : 0;
     let skipped = false;
     while (game.status === 'playing') {
-      const candidates = botMoves(bot);
-      const handMoves = candidates.filter((move) => move.removesHand);
+      const allCandidates = botMoves(bot);
+      const handMoves = allCandidates.filter((move) => move.removesHand);
+      // The Dog prioritizes hand-card plays and never samples pile movements
+      // randomly. If it has no playable card and the stock is exhausted, it
+      // uses the smallest legal pile movement as a deliberate fallback.
+      const dogPileMoves = bot.id === 'dog' && !handMoves.length && !game.stock.length
+        ? allCandidates.filter((move) => !move.removesHand).sort((a, b) => {
+          const piles = game.foundations.concat(game.corners);
+          const aLength = piles[a.source.index + (a.source.zone === 'corner' ? 4 : 0)].length;
+          const bLength = piles[b.source.index + (b.source.zone === 'corner' ? 4 : 0)].length;
+          return aLength - bLength || a.value - b.value
+            || a.source.zone.localeCompare(b.source.zone) || a.source.index - b.source.index
+            || a.destination.zone.localeCompare(b.destination.zone) || a.destination.index - b.destination.index;
+        })
+        : [];
+      const candidates = bot.id === 'dog' ? (handMoves.length ? handMoves : dogPileMoves) : allCandidates;
 
       if (!handMoves.length && !game.turnDrew && game.stock.length) {
         const humanHand = game.hand;
@@ -729,6 +755,7 @@ function runBotTurn(turnIndex, initialSteps = 0) {
         bot.hand = game.hand;
         game.hand = humanHand;
         game.turnDrew = true;
+        game.turnActionCount = (game.turnActionCount || 0) + 1;
         turnMessages.push(`${botName(bot.id)}. ${t('cardDrawn')}`);
         saveGame();
         render();
@@ -736,7 +763,7 @@ function runBotTurn(turnIndex, initialSteps = 0) {
         continue;
       }
 
-      const dogSkips = bot.id === 'dog' && candidates.length > 0 && Math.random() < 0.28;
+      const dogSkips = bot.id === 'dog' && game.turnActionCount > 0 && candidates.length > 0 && Math.random() < 0.28;
       if (!candidates.length || dogSkips || steps >= 14) {
         turnMessages.push(t('botSkipped', botName(bot.id)));
         game.turnDrew = false;
@@ -759,6 +786,7 @@ function runBotTurn(turnIndex, initialSteps = 0) {
       game.hand = humanHand;
       steps += 1;
       if (!moved) continue;
+      game.turnActionCount = (game.turnActionCount || 0) + 1;
 
       if (!bot.hand.length) { game.status = 'won'; game.winnerId = bot.id; }
       const actionMessage = sourceCard
@@ -781,6 +809,7 @@ function runBotTurn(turnIndex, initialSteps = 0) {
   game.activeTurn = 0;
   game.activeBotId = null;
   game.turnDrew = false;
+  game.turnActionCount = 0;
   checkBotMatchBlocked();
   saveGame();
   render();
@@ -792,7 +821,7 @@ function startGame(mode) {
   game = createGame(mode);
   if (mode === 'bots') {
     game.botPlayers = selectedBotIds.map((id) => ({ id, hand: game.stock.splice(0, 7) }));
-    game.activeTurn = 0; game.activeBotId = null; game.turnDrew = false; game.winnerId = null;
+    game.activeTurn = 0; game.activeBotId = null; game.turnDrew = false; game.turnActionCount = 0; game.winnerId = null;
   }
   history = [];
   selected = null;
