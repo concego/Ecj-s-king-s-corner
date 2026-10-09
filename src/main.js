@@ -1,4 +1,4 @@
-import { getText } from './i18n.js?v=bot-turn-fix-6';
+import { getText } from './i18n.js?v=bot-turn-debug-7';
 import { playSound, setAudioEnabled } from './audio.js';
 import {
   RANK_BY_VALUE,
@@ -698,11 +698,14 @@ function passHumanTurn() {
   game.activeBotId = game.botPlayers[0].id;
   game.turnDrew = false;
   saveGame(); render();
+  status.textContent = `DBG pass ${game.status} bots=${game.botPlayers?.length} stock=${game.stock.length}`;
   runBotTurn(1, 0);
 }
 
 function runBotTurn(turnIndex, initialSteps = 0) {
-  if (game.status !== 'playing') return;
+  status.textContent = `DBG enter status=${game?.status} index=${turnIndex} bots=${game?.botPlayers?.length}`;
+  if (game.status !== 'playing') { status.textContent = `DBG early return status=${game.status}`; return; }
+  status.textContent = 'DBG status playing';
 
   // Complete bot turns in a bounded loop rather than depending on a chain of
   // delayed callbacks. A skipped/no-move turn must always advance to the next
@@ -718,7 +721,9 @@ function runBotTurn(turnIndex, initialSteps = 0) {
     let steps = currentTurn === turnIndex ? initialSteps : 0;
     let skipped = false;
     while (game.status === 'playing') {
+      status.textContent = `DBG loop steps=${steps} hand=${bot.hand?.length} stock=${game.stock.length}`;
       const candidates = botMoves(bot);
+      status.textContent = `DBG candidates=${candidates.length} hand=${bot.hand?.length} stock=${game.stock.length}`;
       const handMoves = candidates.filter((move) => move.removesHand);
 
       if (!handMoves.length && !game.turnDrew && game.stock.length) {
@@ -769,6 +774,7 @@ function runBotTurn(turnIndex, initialSteps = 0) {
       if (game.status === 'won') break;
     }
     if (game.status === 'won') break;
+    status.textContent = `DBG endbot skipped=${skipped} status=${game.status}`;
     if (!skipped) game.turnDrew = false;
   }
 
@@ -777,6 +783,7 @@ function runBotTurn(turnIndex, initialSteps = 0) {
     return;
   }
 
+  status.textContent = `DBG return status=${game.status} stock=${game.stock.length}`;
   game.activeTurn = 0;
   game.activeBotId = null;
   game.turnDrew = false;
