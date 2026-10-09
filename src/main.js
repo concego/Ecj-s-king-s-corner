@@ -1,4 +1,4 @@
-import { getText } from './i18n.js?v=bot-match-v1';
+import { getText } from './i18n.js?v=bot-turn-fix-1';
 import { playSound, setAudioEnabled } from './audio.js';
 import {
   RANK_BY_VALUE,
@@ -701,50 +701,90 @@ function passHumanTurn() {
   runBotTurn(1, 0);
 }
 
-function runBotTurn(turnIndex, steps) {
+function runBotTurn(turnIndex, initialSteps = 0) {
   if (game.status !== 'playing') return;
-  if (turnIndex > game.botPlayers.length) {
-    game.activeTurn = 0; game.activeBotId = null; game.turnDrew = false;
-    checkBotMatchBlocked(); saveGame(); render();
-    if (game.status === 'blocked') announce(t('blocked'), 'error');
-    else announce(t('yourTurn'), 'confirm');
+
+  // Complete bot turns in a bounded loop rather than depending on a chain of
+  // delayed callbacks. A skipped/no-move turn must always advance to the next
+  // participant and eventually restore the human turn.
+  const turnMessages = [];
+  for (let currentTurn = turnIndex; currentTurn <= game.botPlayers.length && game.status === 'playing'; currentTurn += 1) {
+    const bot = game.botPlayers[currentTurn - 1];
+    game.activeTurn = currentTurn;
+    game.activeBotId = bot.id;
+    render();
+    announce(t('botTurn', botName(bot.id)));
+
+    let steps = currentTurn === turnIndex ? initialSteps : 0;
+    let skipped = false;
+    while (game.status === 'playing') {
+      const candidates = botMoves(bot);
+      const handMoves = candidates.filter((move) => move.removesHand);
+
+      if (!handMoves.length && !game.turnDrew && game.stock.length) {
+        const humanHand = game.hand;
+        game.hand = bot.hand;
+        drawCard(game);
+        bot.hand = game.hand;
+        game.hand = humanHand;
+        game.turnDrew = true;
+        turnMessages.push(`${botName(bot.id)}. ${t('cardDrawn')}`);
+        saveGame();
+        render();
+        steps += 1;
+        continue;
+      }
+
+      const dogSkips = bot.id === 'dog' && candidates.length > 0 && Math.random() < 0.28;
+      if (!candidates.length || dogSkips || steps >= 14) {
+        turnMessages.push(t('botSkipped', botName(bot.id)));
+        game.turnDrew = false;
+        skipped = true;
+        break;
+      }
+
+      let chosen;
+      if (bot.id === 'lion') chosen = [...candidates].sort((a, b) => b.value - a.value || Number(b.removesHand) - Number(a.removesHand))[0];
+      else if (bot.id === 'fox') chosen = [...candidates].sort((a, b) => Number(b.removesHand) - Number(a.removesHand) || b.value - a.value)[0];
+      else chosen = candidates[Math.floor(Math.random() * candidates.length)];
+
+      const sourceCard = chosen.source.zone === 'hand' ? bot.hand[chosen.source.index] : null;
+      const movedCount = chosen.source.zone === 'hand' ? 1 : game[chosen.source.zone === 'foundation' ? 'foundations' : 'corners'][chosen.source.index].length;
+      const destinationName = botPileName(chosen.destination.zone, chosen.destination.index);
+      const humanHand = game.hand;
+      game.hand = bot.hand;
+      const moved = moveSelected(game, chosen.source, chosen.destination);
+      bot.hand = game.hand;
+      game.hand = humanHand;
+      steps += 1;
+      if (!moved) continue;
+
+      if (!bot.hand.length) { game.status = 'won'; game.winnerId = bot.id; }
+      const actionMessage = sourceCard
+        ? t('botPlayedCard', botName(bot.id), cardAccessibleName(sourceCard, locale), destinationName)
+        : t('botMovedPile', botName(bot.id), movedCount, destinationName);
+      turnMessages.push(actionMessage);
+      saveGame();
+      render();
+      if (game.status === 'won') break;
+    }
+    if (game.status === 'won') break;
+    if (!skipped) game.turnDrew = false;
+  }
+
+  if (game.status === 'won') {
+    announce(t('winnerStatus', botName(game.winnerId)), 'victory');
     return;
   }
-  game.activeTurn = turnIndex;
-  const bot = game.botPlayers[turnIndex - 1];
-  game.activeBotId = bot.id;
-  if (steps === 0) { render(); announce(t('botTurn', botName(bot.id))); }
-  const candidates = botMoves(bot);
-  const handMoves = candidates.filter((move) => move.removesHand);
-  if (!handMoves.length && !game.turnDrew && game.stock.length) {
-    const humanHand = game.hand; game.hand = bot.hand;
-    const card = drawCard(game); bot.hand = game.hand; game.hand = humanHand;
-    game.turnDrew = true; saveGame(); render(); announce(`${botName(bot.id)}. ${t('cardDrawn')}`, 'cardDraw');
-    setTimeout(() => runBotTurn(turnIndex, steps + 1), 500); return;
-  }
-  const dogSkips = bot.id === 'dog' && candidates.length > 0 && Math.random() < 0.28;
-  if (!candidates.length || dogSkips || steps >= 14) {
-    const nextIndex = turnIndex + 1;
-    game.turnDrew = false;
-    setTimeout(() => runBotTurn(nextIndex, 0), 400); return;
-  }
-  let chosen;
-  if (bot.id === 'lion') chosen = [...candidates].sort((a, b) => b.value - a.value || Number(b.removesHand) - Number(a.removesHand))[0];
-  else if (bot.id === 'fox') chosen = [...candidates].sort((a, b) => Number(b.removesHand) - Number(a.removesHand) || b.value - a.value)[0];
-  else chosen = candidates[Math.floor(Math.random() * candidates.length)];
-  const sourceCard = chosen.source.zone === 'hand' ? bot.hand[chosen.source.index] : null;
-  const movedCount = chosen.source.zone === 'hand' ? 1 : game[chosen.source.zone === 'foundation' ? 'foundations' : 'corners'][chosen.source.index].length;
-  const destinationName = botPileName(chosen.destination.zone, chosen.destination.index);
-  const humanHand = game.hand; game.hand = bot.hand;
-  const moved = moveSelected(game, chosen.source, chosen.destination);
-  bot.hand = game.hand; game.hand = humanHand;
-  if (!moved) { setTimeout(() => runBotTurn(turnIndex, steps + 1), 0); return; }
-  if (!bot.hand.length) { game.status = 'won'; game.winnerId = bot.id; }
-  saveGame(); render();
-  const actionMessage = sourceCard ? t('botPlayedCard', botName(bot.id), cardAccessibleName(sourceCard, locale), destinationName) : t('botMovedPile', botName(bot.id), movedCount, destinationName);
-  announce(actionMessage, 'cardPlay');
-  if (game.status === 'won') { announce(t('winnerStatus', botName(bot.id)), 'victory'); return; }
-  setTimeout(() => runBotTurn(turnIndex, steps + 1), 600);
+
+  game.activeTurn = 0;
+  game.activeBotId = null;
+  game.turnDrew = false;
+  checkBotMatchBlocked();
+  saveGame();
+  render();
+  if (game.status === 'blocked') announce(t('blocked'), 'error');
+  else announce([...turnMessages, t('yourTurn')].join(' '), turnMessages.length ? 'cardPlay' : 'confirm');
 }
 
 function startGame(mode) {
