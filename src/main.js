@@ -1,4 +1,4 @@
-import { getText } from './i18n.js?v=bot-turn-debug-7';
+import { getText } from './i18n.js?v=bot-turn-debug-8';
 import { playSound, setAudioEnabled } from './audio.js';
 import {
   RANK_BY_VALUE,
@@ -656,20 +656,26 @@ function undo() {
 }
 
 function botMoves(bot) {
+  status.textContent = `DBG bm entry hand=${bot?.hand?.length}`;
   const humanHand = game.hand;
   game.hand = bot.hand;
+  status.textContent = `DBG bm swapped hand=${game.hand?.length}`;
   const candidates = [];
   game.hand.forEach((card, index) => {
     [...game.foundations.map((pile, i) => ({ zone: 'foundation', index: i, pile })), ...game.corners.map((pile, i) => ({ zone: 'corner', index: i, pile }))]
       .forEach((target) => { if (canPlaceCard(card, target.pile, target.zone)) candidates.push({ source: { zone: 'hand', index }, destination: { zone: target.zone, index: target.index }, value: card.rank, removesHand: true }); });
   });
+  status.textContent = `DBG bm hand scan candidates=${candidates.length}`;
   const piles = [...game.foundations.map((pile, index) => ({ zone: 'foundation', index, pile })), ...game.corners.map((pile, index) => ({ zone: 'corner', index, pile }))];
+  status.textContent = `DBG bm piles=${piles.length}`;
   piles.forEach((source) => piles.forEach((target) => {
     if (source.pile.length && !(source.zone === target.zone && source.index === target.index) && canMoveStack(source.pile, target.pile, target.zone)) {
       candidates.push({ source: { zone: source.zone, index: source.index }, destination: { zone: target.zone, index: target.index }, value: source.pile.reduce((n, card) => n + card.rank, 0), removesHand: false });
     }
   }));
+  status.textContent = `DBG bm pile scan candidates=${candidates.length}`;
   game.hand = humanHand;
+  status.textContent = `DBG bm restored candidates=${candidates.length}`;
   return candidates;
 }
 
