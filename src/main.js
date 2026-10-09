@@ -1,4 +1,4 @@
-import { getText } from './i18n.js?v=bot-strategy-navigation-1';
+import { getText } from './i18n.js?v=bot-setup-menu-1';
 import { playSound, setAudioEnabled } from './audio.js';
 import {
   RANK_BY_VALUE,
@@ -195,7 +195,7 @@ function renderNewGame() {
       <legend><strong>${escapeHtml(t('styleTitle'))}</strong></legend>
       <div class="setting"><div><strong>${escapeHtml(t('classic'))}</strong><small>${escapeHtml(t('classicDescription'))}</small></div>${button(t('startClassic'), 'start-training')}</div>
       <div class="setting"><div><strong>${escapeHtml(t('recordSolo'))}</strong><small>${escapeHtml(t('recordSoloDescription'))}</small></div>${button(t('startRecordSolo'), 'start-record')}</div>
-      <div class="setting"><div><strong>${escapeHtml(t('botsMode'))}</strong><small>${escapeHtml(t('botSelectionNote'))}</small></div>${button(t('botsMode'), 'open-bot-selection', 'class="secondary"')}</div>
+      <div class="setting"><div><strong>${escapeHtml(t('botsMode'))}</strong><small>${escapeHtml(t('botSelectionNote'))}</small></div>${button(t('botsMode'), 'open-bot-setup', 'class="secondary"')}</div>
     </fieldset>
     <div class="inline-actions">${button(t('back'), 'back-game-menu', 'class="secondary"')}</div>
   </div>`);
@@ -203,17 +203,28 @@ function renderNewGame() {
 
 const BOT_IDS = ['lion', 'dog', 'fox'];
 
+function renderBotMatchSetup() {
+  app.innerHTML = screenShell(t('botsMode'), t('botSelectionNote'), `<div class="panel button-list">
+    <p class="legend">${escapeHtml(t('botSelectionCount', selectedBotIds.length))}</p>
+    ${button(t('selectBots'), 'open-bot-selection')}
+    ${button(t('startBotMatch'), 'start-bot-match', `${selectedBotIds.length ? 'class="secondary"' : 'class="secondary" disabled="disabled"'}`)}
+    ${button(t('back'), 'back-bot-setup', 'class="secondary"')}
+  </div>`);
+}
+
 function renderBotSelection() {
-  const options = BOT_IDS.map((id) => {
+  const options = BOT_IDS.map((id, index) => {
     const name = t(`bot${id[0].toUpperCase()}${id.slice(1)}`);
     const selectedNow = selectedBotIds.includes(id);
-    const appearance = t(`bot${id[0].toUpperCase()}${id.slice(1)}Appearance`);
     const personality = t(`bot${id[0].toUpperCase()}${id.slice(1)}Personality`);
     const alt = t(`bot${id[0].toUpperCase()}${id.slice(1)}Alt`);
-    return `<fieldset class="bot-option"><legend><strong>${escapeHtml(name)}</strong></legend><img class="bot-portrait" src="./assets/bots/${id}.webp" alt="" aria-hidden="true" role="presentation" width="240" height="240"><span class="sr-only" role="img" aria-label="${escapeHtml(alt)}"></span><p>${escapeHtml(personality)}</p><div class="inline-actions">${button(t('readBotAppearance', name, id), 'read-bot-appearance', `class="secondary" data-bot-id="${id}"`)}${button(selectedNow ? t('deselectBot', name) : t('selectBot', name), 'toggle-bot-selection', `class="${selectedNow ? '' : 'secondary'}" data-bot-id="${id}" aria-pressed="${selectedNow}"`)}</div></fieldset>`;
+    return `<div class="bot-option" role="row" aria-label="${escapeHtml(name)}" data-bot-option-index="${index}">
+      <div class="bot-option-profile" role="rowheader"><img class="bot-portrait" src="./assets/bots/${id}.webp" alt="" aria-hidden="true" role="presentation" width="240" height="240"><span class="sr-only" role="img" aria-label="${escapeHtml(alt)}"></span><div><strong>${escapeHtml(name)}</strong><p>${escapeHtml(personality)}</p></div></div>
+      <div class="bot-option-cell" role="cell"><span class="bot-option-mobile-label">${escapeHtml(t('botPhysicalDescriptionColumn'))}</span>${button(t('readBotAppearance', name, id), 'read-bot-appearance', `class="secondary" data-bot-id="${id}"`)}</div>
+      <div class="bot-option-cell" role="cell"><span class="bot-option-mobile-label">${escapeHtml(t('botSelectionColumn'))}</span>${button(selectedNow ? t('deselectBot', name) : t('selectBot', name), 'toggle-bot-selection', `class="${selectedNow ? '' : 'secondary'}" data-bot-id="${id}" aria-pressed="${selectedNow}"`)}</div>
+    </div>`;
   }).join('');
-  app.innerHTML = screenShell(t('botSelectionTitle'), t('botSelectionLead'), `<div class="panel bot-selection-list"><p class="legend">${escapeHtml(t('botSelectionCount', selectedBotIds.length))}</p>${options}<div class="inline-actions">${button(t('startBotMatch'), 'start-bot-match', `${selectedBotIds.length ? '' : 'disabled="disabled"'}`)}${button(t('back'), 'back-bot-selection', 'class="secondary"')}</div></div>`);
-  app.querySelectorAll('.bot-option').forEach((option, index) => { option.dataset.botOptionIndex = index; });
+  app.innerHTML = screenShell(t('botSelectionTitle'), t('botSelectionLead'), `<div class="panel bot-selection-list"><p class="legend">${escapeHtml(t('botSelectionCount', selectedBotIds.length))}</p><div class="bot-option-table" role="table" aria-label="${escapeHtml(t('botSelectionTitle'))}"><div class="bot-option-head" role="row"><span role="columnheader">${escapeHtml(t('botColumnName'))}</span><span role="columnheader">${escapeHtml(t('botPhysicalDescriptionColumn'))}</span><span role="columnheader">${escapeHtml(t('botSelectionColumn'))}</span></div><div role="rowgroup">${options}</div></div><div class="inline-actions">${button(t('back'), 'back-bot-selection', 'class="secondary"')}</div></div>`);
 }
 
 function toggleBotSelection(id) {
@@ -434,21 +445,22 @@ function setupArrowNavigation() {
   const botOptions = [...app.querySelectorAll('.bot-option')];
   botOptions.forEach((option, index) => {
     option.addEventListener('keydown', (event) => {
-      if (!['ArrowUp', 'ArrowDown'].includes(event.key)) return;
+      if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) return;
       const current = event.target.closest('button, a');
       if (!current || !option.contains(current)) return;
       event.preventDefault();
       event.stopPropagation();
-      const nextIndex = index + (event.key === 'ArrowDown' ? 1 : -1);
-      const nextOption = botOptions[nextIndex];
-      if (!nextOption) return;
       const currentOptions = focusableElements(option);
-      const nextOptions = focusableElements(nextOption);
       const optionIndex = currentOptions.indexOf(current);
-      const target = nextOptions[optionIndex] || nextOptions[0];
+      let target = null;
+      if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+        const nextOption = botOptions[index + (event.key === 'ArrowDown' ? 1 : -1)];
+        const nextOptions = nextOption ? focusableElements(nextOption) : [];
+        target = nextOptions[optionIndex] || null;
+      } else {
+        target = currentOptions[optionIndex + (event.key === 'ArrowRight' ? 1 : -1)] || null;
+      }
       if (!target) return;
-      nextOptions.forEach((item) => { item.tabIndex = -1; });
-      target.tabIndex = 0;
       target.focus({ preventScroll: true });
       playSound('menuFocus');
     });
@@ -509,6 +521,7 @@ function render() {
   if (screen === 'help') renderHelp();
   if (screen === 'game-menu') renderGameMenu();
   if (screen === 'new-game') renderNewGame();
+  if (screen === 'bot-match-setup') renderBotMatchSetup();
   if (screen === 'bot-selection') renderBotSelection();
   if (screen === 'mural') renderMural();
   if (screen === 'game') renderGame();
@@ -948,13 +961,15 @@ function bindActions() {
       if (action === 'start-classic') return startClassic();
       if (action === 'start-training') return startClassic();
       if (action === 'start-record') return startRecordSolo();
+      if (action === 'open-bot-setup') { screen = 'bot-match-setup'; playSound('menuOpen'); render(); return; }
       if (action === 'open-bot-selection') { screen = 'bot-selection'; playSound('menuOpen'); render(); return; }
       if (action === 'toggle-bot-selection') return toggleBotSelection(element.dataset.botId);
       if (action === 'read-bot-appearance') return readBotAppearance(element.dataset.botId);
       if (action === 'save-bot-selection') { screen = 'new-game'; announce(t('botSelectionCount', selectedBotIds.length), 'confirm'); render(); return; }
       if (action === 'start-bot-match') return startBotMatch();
       if (action === 'pass-turn') return passHumanTurn();
-      if (action === 'back-bot-selection') { screen = 'new-game'; render(); return; }
+      if (action === 'back-bot-selection') { screen = 'bot-match-setup'; render(); return; }
+      if (action === 'back-bot-setup') { screen = 'new-game'; render(); return; }
       if (action === 'toggle-soundEnabled') return toggleSetting('soundEnabled');
       if (action === 'toggle-highContrast') return toggleSetting('highContrast');
       if (action === 'toggle-largeText') return toggleSetting('largeText');
@@ -1079,9 +1094,9 @@ function handleArrowKeyOutsideGroup(event) {
 
 document.addEventListener('keydown', (event) => {
   if (handleArrowKeyOutsideGroup(event)) return;
-  if (event.key === 'Escape' && ['options', 'credits', 'game-menu', 'new-game', 'bot-selection', 'mural', 'help'].includes(screen)) {
+  if (event.key === 'Escape' && ['options', 'credits', 'game-menu', 'new-game', 'bot-match-setup', 'bot-selection', 'mural', 'help'].includes(screen)) {
     event.preventDefault();
-    const targetScreen = screen === 'new-game' ? 'game-menu' : screen === 'bot-selection' ? 'new-game' : screen === 'help' ? previousScreen : 'menu';
+    const targetScreen = screen === 'new-game' ? 'game-menu' : screen === 'bot-match-setup' ? 'new-game' : screen === 'bot-selection' ? 'bot-match-setup' : screen === 'help' ? previousScreen : 'menu';
     screen = targetScreen;
     render();
     announce(targetScreen === 'menu' ? t('returnedMenu') : t('gameMenuTitle'), 'menuBack');
