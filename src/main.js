@@ -1,4 +1,4 @@
-import { getText } from './i18n.js?v=bot-dialogue-end-return-1';
+import { getText } from './i18n.js?v=bot-dialogue-mural-2';
 import { playSound, setAudioEnabled } from './audio.js';
 import {
   RANK_BY_VALUE,
@@ -34,6 +34,7 @@ let handFocusIndex = 0;
 let boardFocus = { row: 1, column: 1 };
 let mobileSection = 'board';
 let selectedBotIds = loadSelectedBots();
+let botMatchEndTimer = null;
 
 function loadSelectedBots() {
   try {
@@ -99,15 +100,41 @@ function announceBotDialogue(messages = []) {
   window.setTimeout(() => { botDialogueStatus.textContent = message; }, 300);
 }
 
-function finishBotMatch(message, sound, dialogueMessages = []) {
+function cancelPendingBotMenuReturn() {
+  if (!botMatchEndTimer) return;
+  window.clearTimeout(botMatchEndTimer);
+  botMatchEndTimer = null;
+  if (game?.mode === 'bots' && ['won', 'blocked'].includes(game.status)) {
+    game = null;
+    localStorage.removeItem(SAVED_GAME_KEY);
+  }
+}
+
+function returnFinishedBotMatchToMenu() {
+  if (botMatchEndTimer) window.clearTimeout(botMatchEndTimer);
+  botMatchEndTimer = null;
   screen = 'menu';
   selected = null;
   mobileSection = 'board';
   game = null;
   localStorage.removeItem(SAVED_GAME_KEY);
   render();
+}
+
+function finishBotMatch(message, sound, dialogueMessages = []) {
+  if (game?.mode !== 'bots') return;
+  saveBotScoreIfNeeded();
+  localStorage.removeItem(SAVED_GAME_KEY);
+  screen = 'game';
+  selected = null;
+  mobileSection = 'board';
+  render();
   announce(message, sound);
   announceBotDialogue(dialogueMessages);
+  if (botMatchEndTimer) window.clearTimeout(botMatchEndTimer);
+  botMatchEndTimer = window.setTimeout(() => {
+    if (game?.mode === 'bots' && ['won', 'blocked'].includes(game.status) && screen === 'game') returnFinishedBotMatchToMenu();
+  }, 3500);
 }
 
 function applySettings() {
@@ -281,6 +308,7 @@ function scoreboardEntries() {
 
 function scoreboardModeLabel(mode) {
   if (mode === 'record' || mode === 'Record solo' || mode === 'Solo record') return t('recordSolo');
+  if (mode === 'bots' || mode === 'Jogar contra bots' || mode === 'Play against bots') return t('botsMode');
   return mode || '';
 }
 
@@ -404,18 +432,20 @@ function renderGame() {
   const handSection = `<section class="mobile-game-section hand-section-wrapper${mobileSection === 'hand' ? '' : ' mobile-section-hidden'}" data-mobile-section="hand" aria-labelledby="hand-section-heading"><h2 id="hand-section-heading" class="mobile-section-title">${escapeHtml(t('handSection'))}</h2><section class="hand-section panel" role="listbox" tabindex="0" data-focus-zone="hand" aria-labelledby="hand-heading" aria-activedescendant="${game.hand.length ? `hand-card-${handFocusIndex}` : ''}"><h3 id="hand-heading">${escapeHtml(t('hand'))} <span class="legend">(${escapeHtml(t('cardsCount', game.hand.length))})</span></h3><div class="hand">${hand || `<p>${escapeHtml(t('victory'))}</p>`}</div></section></section>`;
   const mobileControls = `<section class="mobile-game-section controls-section${mobileSection === 'controls' ? '' : ' mobile-section-hidden'}" data-mobile-section="controls" aria-labelledby="controls-section-heading"><h2 id="controls-section-heading" class="mobile-section-title">${escapeHtml(t('controlsSection'))}</h2><div class="mobile-control-list">${game.mode === 'bots' && game.status === 'playing' && game.activeTurn === 0 ? button(t('passTurn'), 'pass-turn', 'class="secondary" aria-keyshortcuts="N"') : ''}${button(t('backMainMenu'), 'back-menu', 'class="secondary" aria-keyshortcuts="Escape"')}${button(t('help'), 'menu-help', 'class="secondary" aria-keyshortcuts="H"')}${isRecordGame() ? button(t('checkScore'), 'check-score', 'class="secondary" aria-keyshortcuts="S"') : ''}${button(t('undo'), 'undo', undoExtra)}</div></section>`;
   const turnSummary = game.mode === 'bots' ? `<p class="game-turn">${escapeHtml(t('botMatchTurnHint'))}</p>` : '';
-  const botDialogue = game.mode === 'bots' && game.botDialogueLog?.length
-    ? `<section class="bot-dialogue" aria-labelledby="bot-dialogue-heading"><h2 id="bot-dialogue-heading">${escapeHtml(t('botDialogueHeading'))}</h2><ul>${game.botDialogueLog.map((entry) => `<li>${escapeHtml(t('botDialogueLabel', botName(entry.botId), entry.line))}</li>`).join('')}</ul></section>`
+  const dialogueLog = game.mode === 'bots' && Array.isArray(game.botDialogueLog) ? game.botDialogueLog : [];
+  const latestDialogue = dialogueLog.at(-1);
+  const earlierDialogue = dialogueLog.slice(-3, -1);
+  const botDialogue = latestDialogue
+    ? `<section class="bot-dialogue" aria-labelledby="bot-dialogue-heading"><h2 id="bot-dialogue-heading">${escapeHtml(t('botDialogueHeading'))}</h2><p class="bot-dialogue-latest">${escapeHtml(t('botDialogueLabel', botName(latestDialogue.botId), latestDialogue.line))}</p>${earlierDialogue.length ? `<ul aria-label="${escapeHtml(t('botDialogueHistory'))}">${earlierDialogue.map((entry) => `<li>${escapeHtml(t('botDialogueLabel', botName(entry.botId), entry.line))}</li>`).join('')}</ul>` : ''}</section>`
     : '';
   const mobileNavigation = `<section class="mobile-section-navigation" aria-labelledby="mobile-navigation-heading"><h2 id="mobile-navigation-heading">${escapeHtml(t('sectionNavigation'))}</h2><nav class="mobile-section-nav-list" aria-label="${escapeHtml(t('sectionNavigation'))}">${button(t('boardSection'), 'mobile-section', `class="secondary" data-section="board" aria-controls="board-section-heading" aria-pressed="${mobileSection === 'board'}"`)}${button(t('handSection'), 'mobile-section', `class="secondary" data-section="hand" aria-controls="hand-section-heading" aria-pressed="${mobileSection === 'hand'}"`)}${button(t('controlsSection'), 'mobile-section', `class="secondary" data-section="controls" aria-controls="controls-section-heading" aria-pressed="${mobileSection === 'controls'}"`)}</nav></section>`;
   const currentSectionHeading = `<h2 id="mobile-current-section" class="mobile-current-section" tabindex="-1">${escapeHtml(t('currentSection', mobileSection === 'board' ? t('boardSection') : mobileSection === 'hand' ? t('handSection') : t('controlsSection')))}</h2>`;
   app.innerHTML = `<div class="screen">
-    <header class="game-header"><div><h1>${escapeHtml(gameTitle)}</h1><p id="game-instructions" class="game-status">${escapeHtml(statusText)}</p>${scoreText}${scoreDetails}</div><div class="inline-actions desktop-controls">${game.mode === 'bots' && game.status === 'playing' && game.activeTurn === 0 ? button(t('passTurn'), 'pass-turn', 'class="secondary" aria-keyshortcuts="N" tabindex="-1"') : ''} ${button(t('undo'), 'undo', `${undoExtra} tabindex="-1"`)} ${button(t('newGameShort'), 'new-game', 'class="secondary" tabindex="-1"')} ${button(t('menu'), 'back-menu', 'class="secondary" tabindex="-1" aria-keyshortcuts="Escape"')}</div></header>
+    <header class="game-header"><div><h1>${escapeHtml(gameTitle)}</h1><p id="game-instructions" class="game-status">${escapeHtml(statusText)}</p>${botDialogue}${scoreText}${scoreDetails}</div><div class="inline-actions desktop-controls">${game.mode === 'bots' && game.status === 'playing' && game.activeTurn === 0 ? button(t('passTurn'), 'pass-turn', 'class="secondary" aria-keyshortcuts="N" tabindex="-1"') : ''} ${button(t('undo'), 'undo', `${undoExtra} tabindex="-1"`)} ${button(t('newGameShort'), 'new-game', 'class="secondary" tabindex="-1"')} ${button(t('menu'), 'back-menu', 'class="secondary" tabindex="-1" aria-keyshortcuts="Escape"')}</div></header>
     <div class="game-layout">
       ${mobileNavigation}
       ${currentSectionHeading}
       ${turnSummary}
-      ${botDialogue}
       ${boardSection}
       ${handSection}
       ${mobileControls}
@@ -608,6 +638,16 @@ function saveScoreIfNeeded() {
   entries.sort((a, b) => Number(b.score) - Number(a.score));
   localStorage.setItem(SCOREBOARD_KEY, JSON.stringify(entries.slice(0, 3)));
   game.scoreSaved = true;
+}
+
+function saveBotScoreIfNeeded() {
+  if (game?.mode !== 'bots' || game.botScoreSaved || !['won', 'blocked'].includes(game.status)) return;
+  const humanWon = game.status === 'won' && game.winnerId === 'human';
+  const entries = scoreboardEntries();
+  entries.push({ score: humanWon ? 100 : -100, mode: 'bots', result: humanWon ? 'victory' : 'defeat', date: new Date().toISOString() });
+  entries.sort((a, b) => Number(b.score) - Number(a.score));
+  localStorage.setItem(SCOREBOARD_KEY, JSON.stringify(entries.slice(0, 3)));
+  game.botScoreSaved = true;
 }
 
 function awardResultIfNeeded() {
@@ -1011,7 +1051,7 @@ function bindActions() {
       }
       if (action === 'menu-credits') { screen = 'credits'; playSound('menuOpen'); render(); return; }
       if (action === 'back-help') { screen = previousScreen; playSound('menuBack'); render(); return; }
-      if (action === 'back-menu') { screen = 'menu'; selected = null; playSound('menuBack'); render(); return; }
+      if (action === 'back-menu') { cancelPendingBotMenuReturn(); screen = 'menu'; selected = null; playSound('menuBack'); render(); return; }
       if (action === 'back-game-menu') { screen = 'game-menu'; selected = null; playSound('menuBack'); render(); return; }
       if (action === 'continue-game' && game) { screen = 'game'; selected = null; playSound('menuOpen'); render(); if (game.mode === 'bots' && game.activeTurn > 0) runBotTurn(game.activeTurn, 0); return; }
       if (action === 'new-game') { screen = 'new-game'; selected = null; playSound('menuOpen'); render(); return; }
@@ -1180,6 +1220,7 @@ document.addEventListener('keydown', (event) => {
       announce(t('selectionCancelled'), 'cardCancel');
       render();
     } else {
+      cancelPendingBotMenuReturn();
       screen = 'menu';
       render();
       announce(t('returnedMenu'), 'menuBack');

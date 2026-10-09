@@ -128,9 +128,10 @@ h2 { margin-top: 0; }
 .bot-option-cell button { width: 100%; }
 .bot-option-mobile-label { display: none; }
 .bot-selection-return { display: flex; justify-content: flex-start; margin-top: 0.35rem; }
-.bot-dialogue { padding: 0.8rem 1rem; border-left: 0.3rem solid var(--accent); border-radius: 0.45rem; background: var(--surface-alt); }
-.bot-dialogue h2 { margin: 0 0 0.35rem; font-size: 1.05rem; }
-.bot-dialogue ul { margin: 0; padding-inline-start: 1.4rem; }
+.bot-dialogue { margin: 0.85rem 0; padding: 1rem 1.15rem; border: 3px solid var(--accent); border-left-width: 0.65rem; border-radius: 0.55rem; background: var(--surface-alt); font-size: 1.1rem; }
+.bot-dialogue h2 { margin: 0 0 0.4rem; font-size: 1.05rem; }
+.bot-dialogue-latest { margin: 0; font-size: 1.2rem; font-weight: 700; line-height: 1.5; }
+.bot-dialogue ul { margin: 0.55rem 0 0; padding-inline-start: 1.4rem; color: var(--muted); font-size: 0.95em; }
 
 .game-header { display: flex; justify-content: space-between; gap: 1rem; align-items: start; flex-wrap: wrap; }
 .game-status { color: var(--muted); }
