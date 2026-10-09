@@ -1,1 +1,1 @@
-import './main-bot-turn-fix.js?v=bot-turn-fix-3';
+import './main-bot-turn-fix.js?v=bot-turn-fix-4';
