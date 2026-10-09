@@ -1,4 +1,4 @@
-import { getText } from './i18n.js?v=bot-turn-debug-8';
+import { getText } from './i18n.js?v=bot-turn-fix-9';
 import { playSound, setAudioEnabled } from './audio.js';
 import {
   RANK_BY_VALUE,
@@ -9,6 +9,7 @@ import {
   moveSelected,
   drawCard,
   canPlaceCard,
+  canMoveStack,
   hasLegalHandMove,
   hasLegalPileMove,
   updateBlockedStatus,
@@ -656,26 +657,20 @@ function undo() {
 }
 
 function botMoves(bot) {
-  status.textContent = `DBG bm entry hand=${bot?.hand?.length}`;
   const humanHand = game.hand;
   game.hand = bot.hand;
-  status.textContent = `DBG bm swapped hand=${game.hand?.length}`;
   const candidates = [];
   game.hand.forEach((card, index) => {
     [...game.foundations.map((pile, i) => ({ zone: 'foundation', index: i, pile })), ...game.corners.map((pile, i) => ({ zone: 'corner', index: i, pile }))]
       .forEach((target) => { if (canPlaceCard(card, target.pile, target.zone)) candidates.push({ source: { zone: 'hand', index }, destination: { zone: target.zone, index: target.index }, value: card.rank, removesHand: true }); });
   });
-  status.textContent = `DBG bm hand scan candidates=${candidates.length}`;
   const piles = [...game.foundations.map((pile, index) => ({ zone: 'foundation', index, pile })), ...game.corners.map((pile, index) => ({ zone: 'corner', index, pile }))];
-  status.textContent = `DBG bm piles=${piles.length}`;
   piles.forEach((source) => piles.forEach((target) => {
     if (source.pile.length && !(source.zone === target.zone && source.index === target.index) && canMoveStack(source.pile, target.pile, target.zone)) {
       candidates.push({ source: { zone: source.zone, index: source.index }, destination: { zone: target.zone, index: target.index }, value: source.pile.reduce((n, card) => n + card.rank, 0), removesHand: false });
     }
   }));
-  status.textContent = `DBG bm pile scan candidates=${candidates.length}`;
   game.hand = humanHand;
-  status.textContent = `DBG bm restored candidates=${candidates.length}`;
   return candidates;
 }
 
@@ -704,14 +699,11 @@ function passHumanTurn() {
   game.activeBotId = game.botPlayers[0].id;
   game.turnDrew = false;
   saveGame(); render();
-  status.textContent = `DBG pass ${game.status} bots=${game.botPlayers?.length} stock=${game.stock.length}`;
   runBotTurn(1, 0);
 }
 
 function runBotTurn(turnIndex, initialSteps = 0) {
-  status.textContent = `DBG enter status=${game?.status} index=${turnIndex} bots=${game?.botPlayers?.length}`;
-  if (game.status !== 'playing') { status.textContent = `DBG early return status=${game.status}`; return; }
-  status.textContent = 'DBG status playing';
+  if (game.status !== 'playing') return;
 
   // Complete bot turns in a bounded loop rather than depending on a chain of
   // delayed callbacks. A skipped/no-move turn must always advance to the next
@@ -727,9 +719,7 @@ function runBotTurn(turnIndex, initialSteps = 0) {
     let steps = currentTurn === turnIndex ? initialSteps : 0;
     let skipped = false;
     while (game.status === 'playing') {
-      status.textContent = `DBG loop steps=${steps} hand=${bot.hand?.length} stock=${game.stock.length}`;
       const candidates = botMoves(bot);
-      status.textContent = `DBG candidates=${candidates.length} hand=${bot.hand?.length} stock=${game.stock.length}`;
       const handMoves = candidates.filter((move) => move.removesHand);
 
       if (!handMoves.length && !game.turnDrew && game.stock.length) {
@@ -780,7 +770,6 @@ function runBotTurn(turnIndex, initialSteps = 0) {
       if (game.status === 'won') break;
     }
     if (game.status === 'won') break;
-    status.textContent = `DBG endbot skipped=${skipped} status=${game.status}`;
     if (!skipped) game.turnDrew = false;
   }
 
@@ -789,7 +778,6 @@ function runBotTurn(turnIndex, initialSteps = 0) {
     return;
   }
 
-  status.textContent = `DBG return status=${game.status} stock=${game.stock.length}`;
   game.activeTurn = 0;
   game.activeBotId = null;
   game.turnDrew = false;
