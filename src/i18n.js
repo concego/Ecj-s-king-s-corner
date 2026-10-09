@@ -91,6 +91,34 @@ export const translations = {
     botPlayedCard: (bot, card, pile) => `${bot} jogou ${card} em ${pile}.`,
     botMovedPile: (bot, count, pile) => `${bot} moveu uma pilha de ${count} cartas para ${pile}.`,
     botSkipped: (bot) => `${bot} passou a vez.`,
+    botDialogueHeading: 'Falas dos bots',
+    botDialogueLabel: (bot, line) => `${bot} diz: “${line}”`,
+    botDialogueLines: (id, event) => {
+      const lines = {
+        lion: {
+          card: ['Mais uma jogada forte.', 'A mesa está ficando do meu jeito.'],
+          draw: ['Uma carta nova. Vou transformá-la em vantagem.', 'Ainda posso encontrar uma boa jogada.'],
+          pile: ['Abri caminho para uma jogada.', 'Esse movimento deixou a mesa melhor para mim.'],
+          idle: ['Não encontrei uma abertura desta vez.', 'Vou esperar por uma jogada melhor.'],
+          win: ['Vitória! A força fez diferença.', 'Eu sabia que conseguiria vencer.'],
+        },
+        dog: {
+          card: ['Achei uma jogada! O que eu ia fazer mesmo?', 'Opa, essa carta encaixou!'],
+          draw: ['Uma carta nova... tomara que eu ache lugar para ela.', 'Comprei uma carta. Agora, onde eu estava?'],
+          pile: ['Mexi na pilha e apareceu uma jogada!', 'Acho que abrir caminho ajudou.'],
+          idle: ['Ué, não achei uma jogada agora.', 'Vou esperar; talvez eu tenha deixado passar algo.'],
+          win: ['Eu ganhei? Ah, ganhei!', 'Consegui vencer!'],
+        },
+        fox: {
+          card: ['Uma carta a menos me aproxima da vitória.', 'Boa sequência: mais uma carta jogada.'],
+          draw: ['Uma nova carta; vou procurar a melhor sequência.', 'Vou avaliar onde esta carta se encaixa.'],
+          pile: ['Esse movimento abriu uma sequência útil.', 'A pilha liberou a jogada que eu precisava.'],
+          idle: ['Nenhuma abertura agora. Vou aguardar.', 'Sem uma jogada útil, é melhor esperar.'],
+          win: ['Planejamento concluído: vitória.', 'A estratégia funcionou. Eu venci.'],
+        },
+      };
+      return lines[id]?.[event] || lines[id]?.idle || [];
+    },
     botsGameTitle: 'Kings in the Corner — Contra bots',
     passTurn: 'Passar a vez',
     yourTurn: 'Sua vez',
@@ -267,6 +295,34 @@ export const translations = {
     botPlayedCard: (bot, card, pile) => `${bot} played ${card} to ${pile}.`,
     botMovedPile: (bot, count, pile) => `${bot} moved a pile of ${count} cards to ${pile}.`,
     botSkipped: (bot) => `${bot} passed the turn.`,
+    botDialogueHeading: 'Bot dialogue',
+    botDialogueLabel: (bot, line) => `${bot} says: “${line}”`,
+    botDialogueLines: (id, event) => {
+      const lines = {
+        lion: {
+          card: ['Another strong move.', 'The board is shaping up my way.'],
+          draw: ['A new card. I will turn it into an advantage.', 'There is still a good move to find.'],
+          pile: ['I opened the way for a play.', 'That move improved the board for me.'],
+          idle: ['I could not find an opening this time.', 'I will wait for a better move.'],
+          win: ['Victory! Strength made the difference.', 'I knew I could win.'],
+        },
+        dog: {
+          card: ['I found a move! What was I doing again?', 'Oops, that card fit!'],
+          draw: ['A new card... I hope I find a place for it.', 'I drew a card. Now, where was I?'],
+          pile: ['I moved the pile and found a play!', 'I think opening a path helped.'],
+          idle: ['Huh, I cannot find a move right now.', 'I will wait; maybe I missed something.'],
+          win: ['I won? Oh, I did!', 'I managed to win!'],
+        },
+        fox: {
+          card: ['One less card brings me closer to victory.', 'A good sequence: another card played.'],
+          draw: ['A new card; I will look for the best sequence.', 'I will work out where this card fits.'],
+          pile: ['That move opened a useful sequence.', 'The pile cleared the play I needed.'],
+          idle: ['No opening right now. I will wait.', 'Without a useful move, waiting is best.'],
+          win: ['Plan complete: victory.', 'The strategy worked. I won.'],
+        },
+      };
+      return lines[id]?.[event] || lines[id]?.idle || [];
+    },
     botsGameTitle: 'Kings in the Corner — Against bots',
     passTurn: 'Pass turn',
     yourTurn: 'Your turn',

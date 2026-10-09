@@ -1,4 +1,4 @@
-import { getText } from './i18n.js?v=bot-selection-fixes-1';
+import { getText } from './i18n.js?v=bot-dialogue-end-return-1';
 import { playSound, setAudioEnabled } from './audio.js';
 import {
   RANK_BY_VALUE,
@@ -17,6 +17,7 @@ import {
 
 const app = document.querySelector('#app');
 const status = document.querySelector('#status');
+const botDialogueStatus = document.querySelector('#bot-dialogue-status');
 const SAVED_GAME_KEY = 'ecj-kings-corner-game';
 const SETTINGS_KEY = 'ecj-kings-corner-settings';
 const SCOREBOARD_KEY = 'ecj-kings-corner-scoreboard';
@@ -69,7 +70,7 @@ function loadGame() {
     return {
       mode: 'training', score: 0, usedCardPoints: 0, drawnCardPoints: 0,
       invalidMoves: 0, stackBonuses: 0, cyclePenalties: 0, undoCount: 0,
-      resultAwarded: false, scoreSaved: false, scoredKingIds: [], moveLog: [], turnActionCount: 0, ...saved,
+      resultAwarded: false, scoreSaved: false, scoredKingIds: [], moveLog: [], turnActionCount: 0, botDialogueLog: [], ...saved,
     };
   } catch {
     return null;
@@ -89,6 +90,24 @@ function escapeHtml(value) {
 function announce(message, sound = null) {
   status.textContent = message;
   if (sound) playSound(sound);
+}
+
+function announceBotDialogue(messages = []) {
+  if (!botDialogueStatus || !messages.length) return;
+  const message = messages.join(' ');
+  botDialogueStatus.textContent = '';
+  window.setTimeout(() => { botDialogueStatus.textContent = message; }, 300);
+}
+
+function finishBotMatch(message, sound, dialogueMessages = []) {
+  screen = 'menu';
+  selected = null;
+  mobileSection = 'board';
+  game = null;
+  localStorage.removeItem(SAVED_GAME_KEY);
+  render();
+  announce(message, sound);
+  announceBotDialogue(dialogueMessages);
 }
 
 function applySettings() {
@@ -385,6 +404,9 @@ function renderGame() {
   const handSection = `<section class="mobile-game-section hand-section-wrapper${mobileSection === 'hand' ? '' : ' mobile-section-hidden'}" data-mobile-section="hand" aria-labelledby="hand-section-heading"><h2 id="hand-section-heading" class="mobile-section-title">${escapeHtml(t('handSection'))}</h2><section class="hand-section panel" role="listbox" tabindex="0" data-focus-zone="hand" aria-labelledby="hand-heading" aria-activedescendant="${game.hand.length ? `hand-card-${handFocusIndex}` : ''}"><h3 id="hand-heading">${escapeHtml(t('hand'))} <span class="legend">(${escapeHtml(t('cardsCount', game.hand.length))})</span></h3><div class="hand">${hand || `<p>${escapeHtml(t('victory'))}</p>`}</div></section></section>`;
   const mobileControls = `<section class="mobile-game-section controls-section${mobileSection === 'controls' ? '' : ' mobile-section-hidden'}" data-mobile-section="controls" aria-labelledby="controls-section-heading"><h2 id="controls-section-heading" class="mobile-section-title">${escapeHtml(t('controlsSection'))}</h2><div class="mobile-control-list">${game.mode === 'bots' && game.status === 'playing' && game.activeTurn === 0 ? button(t('passTurn'), 'pass-turn', 'class="secondary" aria-keyshortcuts="N"') : ''}${button(t('backMainMenu'), 'back-menu', 'class="secondary" aria-keyshortcuts="Escape"')}${button(t('help'), 'menu-help', 'class="secondary" aria-keyshortcuts="H"')}${isRecordGame() ? button(t('checkScore'), 'check-score', 'class="secondary" aria-keyshortcuts="S"') : ''}${button(t('undo'), 'undo', undoExtra)}</div></section>`;
   const turnSummary = game.mode === 'bots' ? `<p class="game-turn">${escapeHtml(t('botMatchTurnHint'))}</p>` : '';
+  const botDialogue = game.mode === 'bots' && game.botDialogueLog?.length
+    ? `<section class="bot-dialogue" aria-labelledby="bot-dialogue-heading"><h2 id="bot-dialogue-heading">${escapeHtml(t('botDialogueHeading'))}</h2><ul>${game.botDialogueLog.map((entry) => `<li>${escapeHtml(t('botDialogueLabel', botName(entry.botId), entry.line))}</li>`).join('')}</ul></section>`
+    : '';
   const mobileNavigation = `<section class="mobile-section-navigation" aria-labelledby="mobile-navigation-heading"><h2 id="mobile-navigation-heading">${escapeHtml(t('sectionNavigation'))}</h2><nav class="mobile-section-nav-list" aria-label="${escapeHtml(t('sectionNavigation'))}">${button(t('boardSection'), 'mobile-section', `class="secondary" data-section="board" aria-controls="board-section-heading" aria-pressed="${mobileSection === 'board'}"`)}${button(t('handSection'), 'mobile-section', `class="secondary" data-section="hand" aria-controls="hand-section-heading" aria-pressed="${mobileSection === 'hand'}"`)}${button(t('controlsSection'), 'mobile-section', `class="secondary" data-section="controls" aria-controls="controls-section-heading" aria-pressed="${mobileSection === 'controls'}"`)}</nav></section>`;
   const currentSectionHeading = `<h2 id="mobile-current-section" class="mobile-current-section" tabindex="-1">${escapeHtml(t('currentSection', mobileSection === 'board' ? t('boardSection') : mobileSection === 'hand' ? t('handSection') : t('controlsSection')))}</h2>`;
   app.innerHTML = `<div class="screen">
@@ -393,6 +415,7 @@ function renderGame() {
       ${mobileNavigation}
       ${currentSectionHeading}
       ${turnSummary}
+      ${botDialogue}
       ${boardSection}
       ${handSection}
       ${mobileControls}
@@ -637,7 +660,7 @@ function selectPile(zone, index) {
       saveScoreIfNeeded();
       saveGame();
       render();
-      if (game.mode === 'bots' && game.status === 'won') announce(t('winnerStatus', t('you')), 'victory');
+      if (game.mode === 'bots' && game.status === 'won') finishBotMatch(t('winnerStatus', t('you')), 'victory');
       else if (['won', 'blocked'].includes(game.status)) announceResult();
       else announce(boardCellAnnouncement(boardFocus.row, boardFocus.column), moveSound);
     } else {
@@ -771,6 +794,19 @@ function botPileName(zone, index) {
   return [t('cornerNorthWest'), t('cornerNorthEast'), t('cornerSouthEast'), t('cornerSouthWest')][index];
 }
 
+function addBotDialogue(bot, event, roundMessages) {
+  const lines = t('botDialogueLines', bot.id, event);
+  if (!Array.isArray(lines) || !lines.length) return;
+  const options = lines.map((line, index) => ({ line, index }))
+    .filter((choice) => lines.length === 1 || choice.index !== bot.lastDialogueIndex);
+  const choice = options[Math.floor(Math.random() * options.length)] || { line: lines[0], index: 0 };
+  bot.lastDialogueIndex = choice.index;
+  game.botDialogueLog = Array.isArray(game.botDialogueLog) ? game.botDialogueLog : [];
+  game.botDialogueLog.push({ botId: bot.id, line: choice.line });
+  game.botDialogueLog = game.botDialogueLog.slice(-6);
+  roundMessages.push(t('botDialogueLabel', botName(bot.id), choice.line));
+}
+
 function chooseBotMove(bot, candidates) {
   const handMoves = candidates.filter((move) => move.removesHand);
   const pileMoves = candidates.filter((move) => !move.removesHand);
@@ -823,6 +859,7 @@ function runBotTurn(turnIndex, initialSteps = 0) {
   // delayed callbacks. A skipped/no-move turn must always advance to the next
   // participant and eventually restore the human turn.
   const turnMessages = [];
+  const dialogueMessages = [];
   for (let currentTurn = turnIndex; currentTurn <= game.botPlayers.length && game.status === 'playing'; currentTurn += 1) {
     const bot = game.botPlayers[currentTurn - 1];
     game.activeTurn = currentTurn;
@@ -833,6 +870,7 @@ function runBotTurn(turnIndex, initialSteps = 0) {
 
     let steps = currentTurn === turnIndex ? initialSteps : 0;
     let skipped = false;
+    let lastAction = 'idle';
     while (game.status === 'playing') {
       const candidates = botMoves(bot);
       const handMoves = candidates.filter((move) => move.removesHand);
@@ -845,6 +883,7 @@ function runBotTurn(turnIndex, initialSteps = 0) {
         game.hand = humanHand;
         game.turnDrew = true;
         game.turnActionCount = (game.turnActionCount || 0) + 1;
+        lastAction = 'draw';
         turnMessages.push(`${botName(bot.id)}. ${t('cardDrawn')}`);
         saveGame();
         render();
@@ -880,21 +919,26 @@ function runBotTurn(turnIndex, initialSteps = 0) {
       if (!moved) continue;
       game.turnActionCount = (game.turnActionCount || 0) + 1;
 
-      if (!bot.hand.length) { game.status = 'won'; game.winnerId = bot.id; }
+      if (!bot.hand.length) { game.status = 'won'; game.winnerId = bot.id; lastAction = 'win'; }
       const actionMessage = sourceCard
         ? t('botPlayedCard', botName(bot.id), cardAccessibleName(sourceCard, locale), destinationName)
         : t('botMovedPile', botName(bot.id), movedCount, destinationName);
       turnMessages.push(actionMessage);
+      lastAction = sourceCard ? 'card' : 'pile';
       saveGame();
       render();
       if (game.status === 'won') break;
     }
+    if (game.status === 'won' && game.winnerId === bot.id) lastAction = 'win';
+    addBotDialogue(bot, lastAction, dialogueMessages);
+    saveGame();
+    render();
     if (game.status === 'won') break;
     if (!skipped) game.turnDrew = false;
   }
 
   if (game.status === 'won') {
-    announce(t('winnerStatus', botName(game.winnerId)), 'victory');
+    finishBotMatch(t('winnerStatus', botName(game.winnerId)), 'victory', dialogueMessages);
     return;
   }
 
@@ -904,16 +948,21 @@ function runBotTurn(turnIndex, initialSteps = 0) {
   game.turnActionCount = 0;
   checkBotMatchBlocked();
   saveGame();
+  if (game.status === 'blocked') {
+    finishBotMatch(t('blocked'), 'error', dialogueMessages);
+    return;
+  }
   render();
-  if (game.status === 'blocked') announce(t('blocked'), 'error');
-  else announce([...turnMessages, t('yourTurn')].join(' '), turnMessages.length ? 'cardPlay' : 'confirm');
+  announce([...turnMessages, t('yourTurn')].join(' '), turnMessages.length ? 'cardPlay' : 'confirm');
+  announceBotDialogue(dialogueMessages);
 }
 
 function startGame(mode) {
   game = createGame(mode);
   if (mode === 'bots') {
     game.botPlayers = selectedBotIds.map((id) => ({ id, hand: game.stock.splice(0, 7) }));
-    game.activeTurn = 0; game.activeBotId = null; game.turnDrew = false; game.turnActionCount = 0; game.winnerId = null;
+    game.activeTurn = 0; game.activeBotId = null; game.turnDrew = false; game.turnActionCount = 0; game.winnerId = null; game.botDialogueLog = [];
+    if (botDialogueStatus) botDialogueStatus.textContent = '';
   }
   history = [];
   selected = null;
