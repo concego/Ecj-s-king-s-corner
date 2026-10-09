@@ -1,4 +1,4 @@
-import { getText } from './i18n.js?v=bot-turn-action-2';
+import { getText } from './i18n.js?v=bot-strategy-navigation-1';
 import { playSound, setAudioEnabled } from './audio.js';
 import {
   RANK_BY_VALUE,
@@ -213,6 +213,7 @@ function renderBotSelection() {
     return `<fieldset class="bot-option"><legend><strong>${escapeHtml(name)}</strong></legend><img class="bot-portrait" src="./assets/bots/${id}.webp" alt="" aria-hidden="true" role="presentation" width="240" height="240"><span class="sr-only" role="img" aria-label="${escapeHtml(alt)}"></span><p>${escapeHtml(personality)}</p><div class="inline-actions">${button(t('readBotAppearance', name, id), 'read-bot-appearance', `class="secondary" data-bot-id="${id}"`)}${button(selectedNow ? t('deselectBot', name) : t('selectBot', name), 'toggle-bot-selection', `class="${selectedNow ? '' : 'secondary'}" data-bot-id="${id}" aria-pressed="${selectedNow}"`)}</div></fieldset>`;
   }).join('');
   app.innerHTML = screenShell(t('botSelectionTitle'), t('botSelectionLead'), `<div class="panel bot-selection-list"><p class="legend">${escapeHtml(t('botSelectionCount', selectedBotIds.length))}</p>${options}<div class="inline-actions">${button(t('startBotMatch'), 'start-bot-match', `${selectedBotIds.length ? '' : 'disabled="disabled"'}`)}${button(t('back'), 'back-bot-selection', 'class="secondary"')}</div></div>`);
+  app.querySelectorAll('.bot-option').forEach((option, index) => { option.dataset.botOptionIndex = index; });
 }
 
 function toggleBotSelection(id) {
@@ -426,6 +427,29 @@ function setupArrowNavigation() {
       items.forEach((item) => { item.tabIndex = -1; });
       next.tabIndex = 0;
       next.focus({ preventScroll: true });
+      playSound('menuFocus');
+    });
+  });
+  if (screen !== 'bot-selection') return;
+  const botOptions = [...app.querySelectorAll('.bot-option')];
+  botOptions.forEach((option, index) => {
+    option.addEventListener('keydown', (event) => {
+      if (!['ArrowUp', 'ArrowDown'].includes(event.key)) return;
+      const current = event.target.closest('button, a');
+      if (!current || !option.contains(current)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const nextIndex = index + (event.key === 'ArrowDown' ? 1 : -1);
+      const nextOption = botOptions[nextIndex];
+      if (!nextOption) return;
+      const currentOptions = focusableElements(option);
+      const nextOptions = focusableElements(nextOption);
+      const optionIndex = currentOptions.indexOf(current);
+      const target = nextOptions[optionIndex] || nextOptions[0];
+      if (!target) return;
+      nextOptions.forEach((item) => { item.tabIndex = -1; });
+      target.tabIndex = 0;
+      target.focus({ preventScroll: true });
       playSound('menuFocus');
     });
   });
@@ -660,19 +684,62 @@ function undo() {
   render();
 }
 
+function countPlayableHandCards(hand, foundations, corners) {
+  return hand.filter((card) =>
+    foundations.some((pile) => canPlaceCard(card, pile, 'foundation'))
+      || corners.some((pile) => canPlaceCard(card, pile, 'corner')),
+  ).length;
+}
+
 function botMoves(bot) {
   const humanHand = game.hand;
   game.hand = bot.hand;
   const candidates = [];
+  const piles = [
+    ...game.foundations.map((pile, index) => ({ zone: 'foundation', index, pile })),
+    ...game.corners.map((pile, index) => ({ zone: 'corner', index, pile })),
+  ];
+  const currentHandOptions = countPlayableHandCards(bot.hand, game.foundations, game.corners);
+
   game.hand.forEach((card, index) => {
-    [...game.foundations.map((pile, i) => ({ zone: 'foundation', index: i, pile })), ...game.corners.map((pile, i) => ({ zone: 'corner', index: i, pile }))]
-      .forEach((target) => { if (canPlaceCard(card, target.pile, target.zone)) candidates.push({ source: { zone: 'hand', index }, destination: { zone: target.zone, index: target.index }, value: card.rank, removesHand: true }); });
+    piles.forEach((target) => {
+      if (!canPlaceCard(card, target.pile, target.zone)) return;
+      const source = { zone: 'hand', index };
+      const destination = { zone: target.zone, index: target.index };
+      const trial = cloneGame(game);
+      trial.hand = bot.hand.map((handCard) => ({ ...handCard }));
+      moveSelected(trial, source, destination);
+      candidates.push({
+        source,
+        destination,
+        value: card.rank,
+        removesHand: true,
+        followUpOptions: countPlayableHandCards(trial.hand, trial.foundations, trial.corners),
+      });
+    });
   });
-  const piles = [...game.foundations.map((pile, index) => ({ zone: 'foundation', index, pile })), ...game.corners.map((pile, index) => ({ zone: 'corner', index, pile }))];
+
+  // A pile move is considered only when it creates additional legal plays
+  // from this bot's hand. This rules out purposeless shuffling and reversals.
   piles.forEach((source) => piles.forEach((target) => {
-    if (source.pile.length && !(source.zone === target.zone && source.index === target.index) && canMoveStack(source.pile, target.pile, target.zone)) {
-      candidates.push({ source: { zone: source.zone, index: source.index }, destination: { zone: target.zone, index: target.index }, value: source.pile.reduce((n, card) => n + card.rank, 0), removesHand: false });
-    }
+    if (!source.pile.length || (source.zone === target.zone && source.index === target.index)
+      || !canMoveStack(source.pile, target.pile, target.zone)) return;
+    const moveSource = { zone: source.zone, index: source.index };
+    const destination = { zone: target.zone, index: target.index };
+    const trial = cloneGame(game);
+    trial.hand = bot.hand.map((card) => ({ ...card }));
+    if (!moveSelected(trial, moveSource, destination)) return;
+    const followUpOptions = countPlayableHandCards(trial.hand, trial.foundations, trial.corners);
+    if (followUpOptions <= currentHandOptions) return;
+    candidates.push({
+      source: moveSource,
+      destination,
+      value: source.pile.reduce((sum, card) => sum + card.rank, 0),
+      removesHand: false,
+      followUpOptions,
+      sourceCount: source.pile.length,
+      opensFoundation: source.zone === 'foundation',
+    });
   }));
   game.hand = humanHand;
   return candidates;
@@ -681,6 +748,21 @@ function botMoves(bot) {
 function botPileName(zone, index) {
   if (zone === 'foundation') return [t('foundationNorth'), t('foundationEast'), t('foundationSouth'), t('foundationWest')][index];
   return [t('cornerNorthWest'), t('cornerNorthEast'), t('cornerSouthEast'), t('cornerSouthWest')][index];
+}
+
+function chooseBotMove(bot, candidates) {
+  const handMoves = candidates.filter((move) => move.removesHand);
+  const pileMoves = candidates.filter((move) => !move.removesHand);
+  if (bot.id === 'lion') {
+    if (handMoves.length) return [...handMoves].sort((a, b) => b.value - a.value || b.followUpOptions - a.followUpOptions)[0];
+    return [...pileMoves].sort((a, b) => b.followUpOptions - a.followUpOptions || Number(b.opensFoundation) - Number(a.opensFoundation) || b.value - a.value)[0];
+  }
+  if (bot.id === 'fox') {
+    if (handMoves.length) return [...handMoves].sort((a, b) => b.followUpOptions - a.followUpOptions || a.value - b.value)[0];
+    return [...pileMoves].sort((a, b) => b.followUpOptions - a.followUpOptions || Number(b.opensFoundation) - Number(a.opensFoundation) || a.value - b.value)[0];
+  }
+  if (handMoves.length) return handMoves[Math.floor(Math.random() * handMoves.length)];
+  return [...pileMoves].sort((a, b) => a.sourceCount - b.sourceCount || a.value - b.value || a.source.index - b.source.index || a.destination.index - b.destination.index)[0];
 }
 
 function checkBotMatchBlocked() {
@@ -731,22 +813,8 @@ function runBotTurn(turnIndex, initialSteps = 0) {
     let steps = currentTurn === turnIndex ? initialSteps : 0;
     let skipped = false;
     while (game.status === 'playing') {
-      const allCandidates = botMoves(bot);
-      const handMoves = allCandidates.filter((move) => move.removesHand);
-      // The Dog prioritizes hand-card plays and never samples pile movements
-      // randomly. If it has no playable card and the stock is exhausted, it
-      // uses the smallest legal pile movement as a deliberate fallback.
-      const dogPileMoves = bot.id === 'dog' && !handMoves.length && !game.stock.length
-        ? allCandidates.filter((move) => !move.removesHand).sort((a, b) => {
-          const piles = game.foundations.concat(game.corners);
-          const aLength = piles[a.source.index + (a.source.zone === 'corner' ? 4 : 0)].length;
-          const bLength = piles[b.source.index + (b.source.zone === 'corner' ? 4 : 0)].length;
-          return aLength - bLength || a.value - b.value
-            || a.source.zone.localeCompare(b.source.zone) || a.source.index - b.source.index
-            || a.destination.zone.localeCompare(b.destination.zone) || a.destination.index - b.destination.index;
-        })
-        : [];
-      const candidates = bot.id === 'dog' ? (handMoves.length ? handMoves : dogPileMoves) : allCandidates;
+      const candidates = botMoves(bot);
+      const handMoves = candidates.filter((move) => move.removesHand);
 
       if (!handMoves.length && !game.turnDrew && game.stock.length) {
         const humanHand = game.hand;
@@ -771,10 +839,13 @@ function runBotTurn(turnIndex, initialSteps = 0) {
         break;
       }
 
-      let chosen;
-      if (bot.id === 'lion') chosen = [...candidates].sort((a, b) => b.value - a.value || Number(b.removesHand) - Number(a.removesHand))[0];
-      else if (bot.id === 'fox') chosen = [...candidates].sort((a, b) => Number(b.removesHand) - Number(a.removesHand) || b.value - a.value)[0];
-      else chosen = candidates[Math.floor(Math.random() * candidates.length)];
+      const chosen = chooseBotMove(bot, candidates);
+      if (!chosen) {
+        turnMessages.push(t('botSkipped', botName(bot.id)));
+        game.turnDrew = false;
+        skipped = true;
+        break;
+      }
 
       const sourceCard = chosen.source.zone === 'hand' ? bot.hand[chosen.source.index] : null;
       const movedCount = chosen.source.zone === 'hand' ? 1 : game[chosen.source.zone === 'foundation' ? 'foundations' : 'corners'][chosen.source.index].length;
