@@ -27,6 +27,16 @@ let selected = null;
 let handFocusIndex = 0;
 let boardFocus = { row: 1, column: 1 };
 let mobileSection = 'board';
+let selectedBotIds = loadSelectedBots();
+
+function loadSelectedBots() {
+  try {
+    const saved = JSON.parse(localStorage.getItem('ecj-kings-corner-selected-bots') || '[]');
+    return Array.isArray(saved) ? saved.filter((id) => ['lion', 'dog', 'fox'].includes(id)) : [];
+  } catch {
+    return [];
+  }
+}
 
 function loadSettings() {
   try {
@@ -181,9 +191,38 @@ function renderNewGame() {
       <legend><strong>${escapeHtml(t('styleTitle'))}</strong></legend>
       <div class="setting"><div><strong>${escapeHtml(t('classic'))}</strong><small>${escapeHtml(t('classicDescription'))}</small></div>${button(t('startClassic'), 'start-training')}</div>
       <div class="setting"><div><strong>${escapeHtml(t('recordSolo'))}</strong><small>${escapeHtml(t('recordSoloDescription'))}</small></div>${button(t('startRecordSolo'), 'start-record')}</div>
+      <div class="setting"><div><strong>${escapeHtml(t('botsMode'))}</strong><small>${escapeHtml(t('botSelectionNote'))}</small></div>${button(t('botsMode'), 'open-bot-selection', 'class="secondary"')}</div>
     </fieldset>
     <div class="inline-actions">${button(t('back'), 'back-game-menu', 'class="secondary"')}</div>
   </div>`);
+}
+
+const BOT_IDS = ['lion', 'dog', 'fox'];
+
+function renderBotSelection() {
+  const options = BOT_IDS.map((id) => {
+    const name = t(`bot${id[0].toUpperCase()}${id.slice(1)}`);
+    const selectedNow = selectedBotIds.includes(id);
+    const appearance = t(`bot${id[0].toUpperCase()}${id.slice(1)}Appearance`);
+    const personality = t(`bot${id[0].toUpperCase()}${id.slice(1)}Personality`);
+    const alt = t(`bot${id[0].toUpperCase()}${id.slice(1)}Alt`);
+    return `<fieldset class="bot-option"><legend><strong>${escapeHtml(name)}</strong></legend><img class="bot-portrait" src="./assets/bots/${id}.webp" alt="${escapeHtml(alt)}" width="240" height="240"><p>${escapeHtml(personality)}</p><div class="inline-actions">${button(t('readBotAppearance', name), 'read-bot-appearance', `class="secondary" data-bot-id="${id}"`)}${button(selectedNow ? t('deselectBot', name) : t('selectBot', name), 'toggle-bot-selection', `class="${selectedNow ? '' : 'secondary'}" data-bot-id="${id}" aria-pressed="${selectedNow}"`)}</div></fieldset>`;
+  }).join('');
+  app.innerHTML = screenShell(t('botSelectionTitle'), t('botSelectionLead'), `<div class="panel bot-selection-list"><p class="legend">${escapeHtml(t('botSelectionCount', selectedBotIds.length))}</p>${options}<p class="legend">${escapeHtml(t('botSelectionNote'))}</p><div class="inline-actions">${button(t('saveBotSelection'), 'save-bot-selection', `class="secondary" ${selectedBotIds.length ? '' : 'disabled="disabled"'}`)}${button(t('back'), 'back-bot-selection', 'class="secondary"')}</div></div>`);
+}
+
+function toggleBotSelection(id) {
+  if (!BOT_IDS.includes(id)) return;
+  selectedBotIds = selectedBotIds.includes(id) ? selectedBotIds.filter((item) => item !== id) : [...selectedBotIds, id];
+  localStorage.setItem('ecj-kings-corner-selected-bots', JSON.stringify(selectedBotIds));
+  announce(t('botSelectionCount', selectedBotIds.length), 'confirm');
+  render();
+}
+
+function readBotAppearance(id) {
+  if (!BOT_IDS.includes(id)) return;
+  const key = `bot${id[0].toUpperCase()}${id.slice(1)}Appearance`;
+  announce(t(key));
 }
 
 function scoreboardEntries() {
@@ -404,6 +443,7 @@ function focusDescriptor(element) {
     locale: element.dataset.locale,
     zone: element.dataset.zone,
     index: element.dataset.index,
+    botId: element.dataset.botId,
   };
 }
 
@@ -420,6 +460,7 @@ function restoreFocus(descriptor) {
       && element.dataset.locale === descriptor.locale
       && element.dataset.zone === descriptor.zone
       && element.dataset.index === descriptor.index
+      && element.dataset.botId === descriptor.botId
       && !element.disabled;
   });
   if (target) target.focus({ preventScroll: true });
@@ -436,6 +477,7 @@ function render() {
   if (screen === 'help') renderHelp();
   if (screen === 'game-menu') renderGameMenu();
   if (screen === 'new-game') renderNewGame();
+  if (screen === 'bot-selection') renderBotSelection();
   if (screen === 'mural') renderMural();
   if (screen === 'game') renderGame();
   bindActions();
@@ -657,6 +699,11 @@ function bindActions() {
       if (action === 'start-classic') return startClassic();
       if (action === 'start-training') return startClassic();
       if (action === 'start-record') return startRecordSolo();
+      if (action === 'open-bot-selection') { screen = 'bot-selection'; playSound('menuOpen'); render(); return; }
+      if (action === 'toggle-bot-selection') return toggleBotSelection(element.dataset.botId);
+      if (action === 'read-bot-appearance') return readBotAppearance(element.dataset.botId);
+      if (action === 'save-bot-selection') { screen = 'new-game'; announce(t('botSelectionCount', selectedBotIds.length), 'confirm'); render(); return; }
+      if (action === 'back-bot-selection') { screen = 'new-game'; render(); return; }
       if (action === 'toggle-soundEnabled') return toggleSetting('soundEnabled');
       if (action === 'toggle-highContrast') return toggleSetting('highContrast');
       if (action === 'toggle-largeText') return toggleSetting('largeText');
@@ -781,9 +828,9 @@ function handleArrowKeyOutsideGroup(event) {
 
 document.addEventListener('keydown', (event) => {
   if (handleArrowKeyOutsideGroup(event)) return;
-  if (event.key === 'Escape' && ['options', 'credits', 'game-menu', 'new-game', 'mural', 'help'].includes(screen)) {
+  if (event.key === 'Escape' && ['options', 'credits', 'game-menu', 'new-game', 'bot-selection', 'mural', 'help'].includes(screen)) {
     event.preventDefault();
-    const targetScreen = screen === 'new-game' ? 'game-menu' : screen === 'help' ? previousScreen : 'menu';
+    const targetScreen = screen === 'new-game' ? 'game-menu' : screen === 'bot-selection' ? 'new-game' : screen === 'help' ? previousScreen : 'menu';
     screen = targetScreen;
     render();
     announce(targetScreen === 'menu' ? t('returnedMenu') : t('gameMenuTitle'), 'menuBack');

@@ -110,6 +110,10 @@ h2 { margin-top: 0; }
 }
 .setting strong { display: block; }
 .setting small { display: block; color: var(--muted); }
+.bot-selection-list { display: grid; gap: 1rem; }
+.bot-option { min-width: 0; margin: 0; padding: 1rem; border: 1px solid var(--border); border-radius: 0.7rem; background: var(--surface-alt); }
+.bot-option legend { padding: 0 0.35rem; }
+.bot-portrait { display: block; width: min(100%, 15rem); height: auto; margin: 0 auto 0.75rem; border-radius: 0.6rem; }
 
 .game-header { display: flex; justify-content: space-between; gap: 1rem; align-items: start; flex-wrap: wrap; }
 .game-status { color: var(--muted); }
