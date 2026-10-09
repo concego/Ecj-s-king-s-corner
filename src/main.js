@@ -1,4 +1,4 @@
-import { getText } from './i18n.js';
+import { getText } from './i18n.js?v=bots-preview-2';
 import { playSound, setAudioEnabled } from './audio.js';
 import {
   RANK_BY_VALUE,
