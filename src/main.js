@@ -1,4 +1,4 @@
-import { getText } from './i18n.js?v=bot-dialogue-mural-2';
+import { getText } from './i18n.js?v=bot-dialogue-mural-3';
 import { playSound, setAudioEnabled } from './audio.js';
 import {
   RANK_BY_VALUE,
@@ -22,6 +22,7 @@ const SAVED_GAME_KEY = 'ecj-kings-corner-game';
 const SETTINGS_KEY = 'ecj-kings-corner-settings';
 const SCOREBOARD_KEY = 'ecj-kings-corner-scoreboard';
 const SELECTED_BOTS_KEY = 'ecj-kings-corner-selected-bots';
+const BOT_DIALOGUE_PAUSE_MS = 3000;
 
 let locale = localStorage.getItem('ecj-kings-corner-locale');
 let settings = loadSettings();
@@ -101,10 +102,10 @@ function announceBotDialogue(messages = []) {
 }
 
 function cancelPendingBotMenuReturn() {
-  if (!botMatchEndTimer) return;
-  window.clearTimeout(botMatchEndTimer);
+  if (botMatchEndTimer) window.clearTimeout(botMatchEndTimer);
   botMatchEndTimer = null;
   if (game?.mode === 'bots' && ['won', 'blocked'].includes(game.status)) {
+    saveBotScoreIfNeeded();
     game = null;
     localStorage.removeItem(SAVED_GAME_KEY);
   }
@@ -121,7 +122,7 @@ function returnFinishedBotMatchToMenu() {
   render();
 }
 
-function finishBotMatch(message, sound, dialogueMessages = []) {
+function finishBotMatch(message, sound) {
   if (game?.mode !== 'bots') return;
   saveBotScoreIfNeeded();
   localStorage.removeItem(SAVED_GAME_KEY);
@@ -130,7 +131,6 @@ function finishBotMatch(message, sound, dialogueMessages = []) {
   mobileSection = 'board';
   render();
   announce(message, sound);
-  announceBotDialogue(dialogueMessages);
   if (botMatchEndTimer) window.clearTimeout(botMatchEndTimer);
   botMatchEndTimer = window.setTimeout(() => {
     if (game?.mode === 'bots' && ['won', 'blocked'].includes(game.status) && screen === 'game') returnFinishedBotMatchToMenu();
@@ -892,7 +892,7 @@ function passHumanTurn() {
   runBotTurn(1, 0);
 }
 
-function runBotTurn(turnIndex, initialSteps = 0) {
+async function runBotTurn(turnIndex, initialSteps = 0) {
   if (game.status !== 'playing') return;
 
   // Complete bot turns in a bounded loop rather than depending on a chain of
@@ -973,12 +973,16 @@ function runBotTurn(turnIndex, initialSteps = 0) {
     addBotDialogue(bot, lastAction, dialogueMessages);
     saveGame();
     render();
+    const latestDialogue = dialogueMessages[dialogueMessages.length - 1];
+    if (latestDialogue) announceBotDialogue([latestDialogue]);
+    await new Promise((resolve) => window.setTimeout(resolve, BOT_DIALOGUE_PAUSE_MS));
+    if (!game || game.mode !== 'bots' || screen !== 'game') return;
     if (game.status === 'won') break;
     if (!skipped) game.turnDrew = false;
   }
 
   if (game.status === 'won') {
-    finishBotMatch(t('winnerStatus', botName(game.winnerId)), 'victory', dialogueMessages);
+    finishBotMatch(t('winnerStatus', botName(game.winnerId)), 'victory');
     return;
   }
 
@@ -989,12 +993,11 @@ function runBotTurn(turnIndex, initialSteps = 0) {
   checkBotMatchBlocked();
   saveGame();
   if (game.status === 'blocked') {
-    finishBotMatch(t('blocked'), 'error', dialogueMessages);
+    finishBotMatch(t('blocked'), 'error');
     return;
   }
   render();
   announce([...turnMessages, t('yourTurn')].join(' '), turnMessages.length ? 'cardPlay' : 'confirm');
-  announceBotDialogue(dialogueMessages);
 }
 
 function startGame(mode) {
@@ -1038,6 +1041,10 @@ function bindActions() {
   app.querySelectorAll('[data-action]').forEach((element) => {
     element.addEventListener('click', () => {
       const action = element.dataset.action;
+      if (game?.mode === 'bots' && game.status === 'playing' && game.activeTurn > 0 && ['back-menu', 'new-game', 'menu-help'].includes(action)) {
+        announce(t('botTurn', botName(game.activeBotId)));
+        return;
+      }
       if (action === 'choose-language') return chooseLanguage(element.dataset.locale);
       if (action === 'menu-start') { screen = 'game-menu'; playSound('menuOpen'); render(); return; }
       if (action === 'menu-mural') { screen = 'mural'; playSound('menuOpen'); render(); return; }
@@ -1191,6 +1198,11 @@ function handleArrowKeyOutsideGroup(event) {
 
 document.addEventListener('keydown', (event) => {
   if (handleArrowKeyOutsideGroup(event)) return;
+  if (screen === 'game' && game?.mode === 'bots' && game.status === 'playing' && game.activeTurn > 0 && ['escape', 'h'].includes(event.key.toLowerCase())) {
+    event.preventDefault();
+    announce(t('botTurn', botName(game.activeBotId)));
+    return;
+  }
   if (event.key === 'Escape' && ['options', 'credits', 'game-menu', 'new-game', 'bot-match-setup', 'bot-selection', 'mural', 'help'].includes(screen)) {
     event.preventDefault();
     const targetScreen = screen === 'new-game' ? 'game-menu' : screen === 'bot-match-setup' ? 'new-game' : screen === 'bot-selection' ? 'bot-match-setup' : screen === 'help' ? previousScreen : 'menu';
