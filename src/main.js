@@ -714,7 +714,9 @@ function runBotTurn(turnIndex, steps) {
   const bot = game.botPlayers[turnIndex - 1];
   game.activeBotId = bot.id;
   if (steps === 0) { render(); announce(t('botTurn', botName(bot.id))); }
+  console.log('BOTDBG start', turnIndex, game.botPlayers.length, Array.isArray(bot.hand), bot.hand?.length, game.stock.length);
   const candidates = botMoves(bot);
+  console.log('BOTDBG candidates', candidates.length, game.hand.length);
   const handMoves = candidates.filter((move) => move.removesHand);
   if (!handMoves.length && !game.turnDrew && game.stock.length) {
     const humanHand = game.hand; game.hand = bot.hand;
