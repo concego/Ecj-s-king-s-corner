@@ -702,6 +702,7 @@ function passHumanTurn() {
 }
 
 function runBotTurn(turnIndex, initialSteps = 0) {
+  console.log('bot-turn-debug: enter', turnIndex, game.status, game.botPlayers?.length, game.stock.length);
   if (game.status !== 'playing') return;
 
   // Complete bot turns in a bounded loop rather than depending on a chain of
@@ -783,6 +784,7 @@ function runBotTurn(turnIndex, initialSteps = 0) {
   checkBotMatchBlocked();
   saveGame();
   render();
+  console.log('bot-turn-debug: leave', game.activeTurn, game.status, game.stock.length);
   if (game.status === 'blocked') announce(t('blocked'), 'error');
   else announce([...turnMessages, t('yourTurn')].join(' '), turnMessages.length ? 'cardPlay' : 'confirm');
 }
