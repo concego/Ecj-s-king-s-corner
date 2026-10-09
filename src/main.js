@@ -1,4 +1,4 @@
-import { getText } from './i18n.js?v=bot-turn-fix-5';
+import { getText } from './i18n.js?v=bot-turn-fix-6';
 import { playSound, setAudioEnabled } from './audio.js';
 import {
   RANK_BY_VALUE,
