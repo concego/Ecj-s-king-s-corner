@@ -1,4 +1,4 @@
-import { getText } from './i18n.js?v=bot-score-lion-1';
+import { getText } from './i18n.js?v=bot-score-lion-2';
 import { playSound, setAudioEnabled } from './audio.js';
 import {
   RANK_BY_VALUE,
