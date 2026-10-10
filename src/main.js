@@ -1,4 +1,4 @@
-import { getText } from './i18n.js?v=bot-score-lion-2';
+import { getText } from './i18n.js?v=bot-score-stall-3';
 import { playSound, setAudioEnabled } from './audio.js';
 import {
   RANK_BY_VALUE,
@@ -22,6 +22,7 @@ const SETTINGS_KEY = 'ecj-kings-corner-settings';
 const SCOREBOARD_KEY = 'ecj-kings-corner-scoreboard';
 const SELECTED_BOTS_KEY = 'ecj-kings-corner-selected-bots';
 const BOT_DIALOGUE_PAUSE_MS = 3000;
+const BOT_STALL_ROUND_LIMIT = 3;
 
 let locale = localStorage.getItem('ecj-kings-corner-locale');
 let settings = loadSettings();
@@ -71,7 +72,7 @@ function loadGame() {
     return {
       mode: 'training', score: 0, usedCardPoints: 0, drawnCardPoints: 0,
       invalidMoves: 0, stackBonuses: 0, cyclePenalties: 0, undoCount: 0,
-      resultAwarded: false, scoreSaved: false, scoredKingIds: [], moveLog: [], turnActionCount: 0, botDialogueLog: [], ...saved,
+      resultAwarded: false, scoreSaved: false, scoredKingIds: [], moveLog: [], turnActionCount: 0, botDialogueLog: [], botRoundCardPlays: 0, botNoProgressRounds: 0, botBlockReason: null, ...saved,
     };
   } catch {
     return null;
@@ -682,7 +683,10 @@ function selectPile(zone, index) {
     const moved = moveSelected(game, selected, { zone, index });
     if (moved) {
       history.push(before);
-      if (game.mode === 'bots' && isHumanTurn()) game.turnActionCount = (game.turnActionCount || 0) + 1;
+      if (game.mode === 'bots' && isHumanTurn()) {
+        game.turnActionCount = (game.turnActionCount || 0) + 1;
+        if (source.zone === 'hand') game.botRoundCardPlays = (game.botRoundCardPlays || 0) + 1;
+      }
       scoreMove(before, source, { zone, index }, movedCards);
       if (game.mode !== 'bots') updateBlockedStatus(game);
       if (game.mode === 'bots' && game.hand.length === 0) { game.status = 'won'; game.winnerId = 'human'; }
@@ -892,7 +896,12 @@ function chooseBotMove(bot, candidates) {
 }
 
 function checkBotMatchBlocked() {
-  if (game.status !== 'playing' || game.stock.length || hasLegalPileMove(game)) return;
+  if (game.status !== 'playing') return;
+  if (game.stock.length) {
+    game.botNoProgressRounds = 0;
+    game.botRoundCardPlays = 0;
+    return;
+  }
   const humanHand = game.hand;
   const allHaveNoHandMoves = [null, ...game.botPlayers].every((participant) => {
     game.hand = participant ? participant.hand : humanHand;
@@ -900,7 +909,23 @@ function checkBotMatchBlocked() {
     game.hand = humanHand;
     return noMoves;
   });
-  if (allHaveNoHandMoves) game.status = 'blocked';
+  if (!allHaveNoHandMoves) {
+    game.botNoProgressRounds = 0;
+    game.botRoundCardPlays = 0;
+    return;
+  }
+  if (!hasLegalPileMove(game)) {
+    game.status = 'blocked';
+    game.botBlockReason = 'no-moves';
+    return;
+  }
+  if (game.botRoundCardPlays > 0) game.botNoProgressRounds = 0;
+  else game.botNoProgressRounds = (game.botNoProgressRounds || 0) + 1;
+  game.botRoundCardPlays = 0;
+  if (game.botNoProgressRounds >= BOT_STALL_ROUND_LIMIT) {
+    game.status = 'blocked';
+    game.botBlockReason = 'stall';
+  }
 }
 
 function passHumanTurn() {
@@ -990,6 +1015,7 @@ async function runBotTurn(turnIndex, initialSteps = 0) {
       steps += 1;
       if (!moved) continue;
       recordBotMoveScore(bot, chosen);
+      if (chosen.removesHand) game.botRoundCardPlays = (game.botRoundCardPlays || 0) + 1;
       game.turnActionCount = (game.turnActionCount || 0) + 1;
 
       if (!bot.hand.length) { game.status = 'won'; game.winnerId = bot.id; lastAction = 'win'; }
@@ -1029,7 +1055,7 @@ async function runBotTurn(turnIndex, initialSteps = 0) {
   checkBotMatchBlocked();
   saveGame();
   if (game.status === 'blocked') {
-    finishBotMatch(t('blocked'), 'error');
+    finishBotMatch(game.botBlockReason === 'stall' ? t('botStalled') : t('blocked'), 'error');
     return;
   }
   render();
@@ -1041,6 +1067,7 @@ function startGame(mode) {
   if (mode === 'bots') {
     game.botPlayers = selectedBotIds.map((id) => ({ id, hand: game.stock.splice(0, 7), score: 0, scoredKingIds: [], moveLog: [] }));
     game.activeTurn = 0; game.activeBotId = null; game.turnDrew = false; game.turnActionCount = 0; game.winnerId = null; game.botDialogueLog = [];
+    game.botRoundCardPlays = 0; game.botNoProgressRounds = 0; game.botBlockReason = null;
   }
   history = [];
   selected = null;
