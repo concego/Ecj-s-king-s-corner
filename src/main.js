@@ -1,4 +1,4 @@
-import { getText } from './i18n.js?v=bot-dialogue-mural-4';
+import { getText } from './i18n.js?v=bot-score-lion-1';
 import { playSound, setAudioEnabled } from './audio.js';
 import {
   RANK_BY_VALUE,
@@ -767,6 +767,39 @@ function countPlayableHandCards(hand, foundations, corners) {
   ).length;
 }
 
+// Mirror Record Solo point deltas; only Lion uses them to choose moves.
+function botMoveScore(bot, source, destination, moved, destinationPile) {
+  let scoreDelta = source.zone === 'hand' ? moved.reduce((sum, card) => sum + card.rank, 0) : 0;
+  let kingIdToScore = source.zone === 'hand' ? moved.find((card) => card.rank === 13)?.id || null : null;
+  const scoredKingIds = Array.isArray(bot.scoredKingIds) ? bot.scoredKingIds : [];
+  if (source.zone !== 'hand' && destination.zone === 'corner' && !destinationPile.length
+    && moved[0]?.rank === 13 && !scoredKingIds.includes(moved[0].id)) {
+    scoreDelta += 13;
+    kingIdToScore = moved[0].id;
+  }
+  if (source.zone !== 'hand' && moved.length >= 2 && destinationPile.length) scoreDelta += 5;
+  const sourceKey = `${source.zone}:${source.index}`;
+  const destinationKey = `${destination.zone}:${destination.index}`;
+  const movedIds = moved.map((card) => card.id);
+  const repeatedReturn = (bot.moveLog || []).some((entry) => entry.source === destinationKey
+    && entry.destination === sourceKey && JSON.stringify(entry.movedIds) === JSON.stringify(movedIds));
+  if (repeatedReturn) scoreDelta -= 5;
+  if (source.zone === 'hand' && bot.hand.length === 1) scoreDelta += 100;
+  return { scoreDelta, kingIdToScore, movedIds };
+}
+
+function recordBotMoveScore(bot, move) {
+  bot.score = (bot.score || 0) + move.scoreDelta;
+  bot.scoredKingIds = Array.isArray(bot.scoredKingIds) ? bot.scoredKingIds : [];
+  if (move.kingIdToScore && !bot.scoredKingIds.includes(move.kingIdToScore)) bot.scoredKingIds.push(move.kingIdToScore);
+  bot.moveLog = Array.isArray(bot.moveLog) ? bot.moveLog : [];
+  bot.moveLog.push({
+    movedIds: [...move.movedIds],
+    source: `${move.source.zone}:${move.source.index}`,
+    destination: `${move.destination.zone}:${move.destination.index}`,
+  });
+}
+
 function botMoves(bot) {
   const humanHand = game.hand;
   game.hand = bot.hand;
@@ -791,6 +824,7 @@ function botMoves(bot) {
         value: card.rank,
         removesHand: true,
         followUpOptions: countPlayableHandCards(trial.hand, trial.foundations, trial.corners),
+        ...botMoveScore(bot, source, destination, [card], target.pile),
       });
     });
   });
@@ -815,6 +849,7 @@ function botMoves(bot) {
       followUpOptions,
       sourceCount: source.pile.length,
       opensFoundation: source.zone === 'foundation',
+      ...botMoveScore(bot, moveSource, destination, source.pile, target.pile),
     });
   }));
   game.hand = humanHand;
@@ -843,8 +878,10 @@ function chooseBotMove(bot, candidates) {
   const handMoves = candidates.filter((move) => move.removesHand);
   const pileMoves = candidates.filter((move) => !move.removesHand);
   if (bot.id === 'lion') {
-    if (handMoves.length) return [...handMoves].sort((a, b) => b.value - a.value || b.followUpOptions - a.followUpOptions)[0];
-    return [...pileMoves].sort((a, b) => b.followUpOptions - a.followUpOptions || Number(b.opensFoundation) - Number(a.opensFoundation) || b.value - a.value)[0];
+    return [...candidates].sort((a, b) => b.scoreDelta - a.scoreDelta
+      || b.followUpOptions - a.followUpOptions
+      || Number(b.removesHand) - Number(a.removesHand)
+      || b.value - a.value)[0];
   }
   if (bot.id === 'fox') {
     if (handMoves.length) return [...handMoves].sort((a, b) => b.followUpOptions - a.followUpOptions || a.value - b.value)[0];
@@ -907,13 +944,15 @@ async function runBotTurn(turnIndex, initialSteps = 0) {
     while (game.status === 'playing') {
       const candidates = botMoves(bot);
       const handMoves = candidates.filter((move) => move.removesHand);
+      const lionHasScoringPileMove = bot.id === 'lion' && candidates.some((move) => !move.removesHand && move.scoreDelta >= 0);
 
-      if (!handMoves.length && !game.turnDrew && game.stock.length) {
+      if (!handMoves.length && !game.turnDrew && game.stock.length && !lionHasScoringPileMove) {
         const humanHand = game.hand;
         game.hand = bot.hand;
-        drawCard(game);
+        const drawnCard = drawCard(game);
         bot.hand = game.hand;
         game.hand = humanHand;
+        if (drawnCard && drawnCard.rank !== 13) bot.score = (bot.score || 0) - drawnCard.rank;
         game.turnDrew = true;
         game.turnActionCount = (game.turnActionCount || 0) + 1;
         lastAction = 'draw';
@@ -950,6 +989,7 @@ async function runBotTurn(turnIndex, initialSteps = 0) {
       game.hand = humanHand;
       steps += 1;
       if (!moved) continue;
+      recordBotMoveScore(bot, chosen);
       game.turnActionCount = (game.turnActionCount || 0) + 1;
 
       if (!bot.hand.length) { game.status = 'won'; game.winnerId = bot.id; lastAction = 'win'; }
@@ -999,7 +1039,7 @@ async function runBotTurn(turnIndex, initialSteps = 0) {
 function startGame(mode) {
   game = createGame(mode);
   if (mode === 'bots') {
-    game.botPlayers = selectedBotIds.map((id) => ({ id, hand: game.stock.splice(0, 7) }));
+    game.botPlayers = selectedBotIds.map((id) => ({ id, hand: game.stock.splice(0, 7), score: 0, scoredKingIds: [], moveLog: [] }));
     game.activeTurn = 0; game.activeBotId = null; game.turnDrew = false; game.turnActionCount = 0; game.winnerId = null; game.botDialogueLog = [];
   }
   history = [];
