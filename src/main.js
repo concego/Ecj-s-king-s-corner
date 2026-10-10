@@ -1,4 +1,4 @@
-import { getText } from './i18n.js?v=bot-score-v2-1';
+import { getText } from './i18n.js?v=bot-score-v2-2';
 import { playSound, setAudioEnabled } from './audio.js';
 import {
   RANK_BY_VALUE,
@@ -729,7 +729,7 @@ function announceResult() {
 
 function checkScore() {
   if (game?.mode === 'bots') {
-    announce(`${t('scoreLabel', game.score)}. ${t('botScoresCurrent', botScoreLines().join('. '))}`, 'confirm');
+    announce(`${t('scoreLabel', game.score)}. ${t('botScoreCurrent', botScoreLines().join('. '))}`, 'confirm');
     return;
   }
   if (!isRecordGame()) return;
