@@ -1,4 +1,4 @@
-import { getText } from './i18n.js?v=bot-dialogue-mural-3';
+import { getText } from './i18n.js?v=bot-dialogue-mural-4';
 import { playSound, setAudioEnabled } from './audio.js';
 import {
   RANK_BY_VALUE,
@@ -17,7 +17,6 @@ import {
 
 const app = document.querySelector('#app');
 const status = document.querySelector('#status');
-const botDialogueStatus = document.querySelector('#bot-dialogue-status');
 const SAVED_GAME_KEY = 'ecj-kings-corner-game';
 const SETTINGS_KEY = 'ecj-kings-corner-settings';
 const SCOREBOARD_KEY = 'ecj-kings-corner-scoreboard';
@@ -92,13 +91,6 @@ function escapeHtml(value) {
 function announce(message, sound = null) {
   status.textContent = message;
   if (sound) playSound(sound);
-}
-
-function announceBotDialogue(messages = []) {
-  if (!botDialogueStatus || !messages.length) return;
-  const message = messages.join(' ');
-  botDialogueStatus.textContent = '';
-  window.setTimeout(() => { botDialogueStatus.textContent = message; }, 300);
 }
 
 function cancelPendingBotMenuReturn() {
@@ -908,6 +900,7 @@ async function runBotTurn(turnIndex, initialSteps = 0) {
     render();
     announce(t('botTurn', botName(bot.id)));
 
+    const botMessageStart = turnMessages.length;
     let steps = currentTurn === turnIndex ? initialSteps : 0;
     let skipped = false;
     let lastAction = 'idle';
@@ -970,11 +963,14 @@ async function runBotTurn(turnIndex, initialSteps = 0) {
       if (game.status === 'won') break;
     }
     if (game.status === 'won' && game.winnerId === bot.id) lastAction = 'win';
+    const botActionMessages = turnMessages.slice(botMessageStart);
+    const dialogueCountBefore = dialogueMessages.length;
     addBotDialogue(bot, lastAction, dialogueMessages);
     saveGame();
     render();
-    const latestDialogue = dialogueMessages[dialogueMessages.length - 1];
-    if (latestDialogue) announceBotDialogue([latestDialogue]);
+    const latestDialogue = dialogueMessages.length > dialogueCountBefore ? dialogueMessages[dialogueMessages.length - 1] : null;
+    const botTurnAnnouncement = [...botActionMessages, latestDialogue].filter(Boolean).join(' ');
+    announce(botTurnAnnouncement, botActionMessages.length ? 'cardPlay' : 'confirm');
     await new Promise((resolve) => window.setTimeout(resolve, BOT_DIALOGUE_PAUSE_MS));
     if (!game || game.mode !== 'bots' || screen !== 'game') return;
     if (game.status === 'won') break;
@@ -997,7 +993,7 @@ async function runBotTurn(turnIndex, initialSteps = 0) {
     return;
   }
   render();
-  announce([...turnMessages, t('yourTurn')].join(' '), turnMessages.length ? 'cardPlay' : 'confirm');
+  announce(t('yourTurn'), turnMessages.length ? 'cardPlay' : 'confirm');
 }
 
 function startGame(mode) {
@@ -1005,7 +1001,6 @@ function startGame(mode) {
   if (mode === 'bots') {
     game.botPlayers = selectedBotIds.map((id) => ({ id, hand: game.stock.splice(0, 7) }));
     game.activeTurn = 0; game.activeBotId = null; game.turnDrew = false; game.turnActionCount = 0; game.winnerId = null; game.botDialogueLog = [];
-    if (botDialogueStatus) botDialogueStatus.textContent = '';
   }
   history = [];
   selected = null;
