@@ -1,4 +1,4 @@
-import { getText } from './i18n.js?v=bot-score-stall-3';
+import { getText } from './i18n.js?v=bot-score-v2-1';
 import { playSound, setAudioEnabled } from './audio.js';
 import {
   RANK_BY_VALUE,
@@ -22,7 +22,11 @@ const SETTINGS_KEY = 'ecj-kings-corner-settings';
 const SCOREBOARD_KEY = 'ecj-kings-corner-scoreboard';
 const SELECTED_BOTS_KEY = 'ecj-kings-corner-selected-bots';
 const BOT_DIALOGUE_PAUSE_MS = 3000;
+const BOT_MATCH_END_DISPLAY_MS = 7000;
 const BOT_STALL_ROUND_LIMIT = 3;
+const MATCH_SCORE_VERSION = 2;
+const MATCH_WIN_BONUS = 10;
+const MATCH_LOSS_PENALTY = 5;
 
 let locale = localStorage.getItem('ecj-kings-corner-locale');
 let settings = loadSettings();
@@ -69,11 +73,26 @@ function loadGame() {
   try {
     const saved = JSON.parse(localStorage.getItem(SAVED_GAME_KEY) || 'null');
     if (!saved?.hand || !saved?.stock || !saved?.foundations || !saved?.corners) return null;
-    return {
+    const loaded = {
       mode: 'training', score: 0, usedCardPoints: 0, drawnCardPoints: 0,
       invalidMoves: 0, stackBonuses: 0, cyclePenalties: 0, undoCount: 0,
       resultAwarded: false, scoreSaved: false, scoredKingIds: [], moveLog: [], turnActionCount: 0, botDialogueLog: [], botRoundCardPlays: 0, botNoProgressRounds: 0, botBlockReason: null, ...saved,
     };
+    if (loaded.mode === 'bots' && Number(loaded.scoreVersion || 0) < MATCH_SCORE_VERSION && loaded.status === 'playing') {
+      loaded.score = 0;
+      loaded.usedCardPoints = 0;
+      loaded.drawnCardPoints = 0;
+      loaded.invalidMoves = 0;
+      loaded.stackBonuses = 0;
+      loaded.cyclePenalties = 0;
+      loaded.scoredKingIds = [];
+      loaded.moveLog = [];
+      loaded.resultAwarded = false;
+      loaded.botScoreSaved = false;
+      loaded.botPlayers = (loaded.botPlayers || []).map((bot) => ({ ...bot, score: 0, scoredKingIds: [], moveLog: [] }));
+    }
+    loaded.scoreVersion = MATCH_SCORE_VERSION;
+    return loaded;
   } catch {
     return null;
   }
@@ -98,6 +117,7 @@ function cancelPendingBotMenuReturn() {
   if (botMatchEndTimer) window.clearTimeout(botMatchEndTimer);
   botMatchEndTimer = null;
   if (game?.mode === 'bots' && ['won', 'blocked'].includes(game.status)) {
+    awardResultIfNeeded();
     saveBotScoreIfNeeded();
     game = null;
     localStorage.removeItem(SAVED_GAME_KEY);
@@ -115,19 +135,51 @@ function returnFinishedBotMatchToMenu() {
   render();
 }
 
+function botScoreStandings() {
+  if (game?.mode !== 'bots') return [];
+  const resultFor = (participantId) => {
+    if (game.status === 'blocked') return t('botScoreBlocked');
+    if (game.status !== 'won') return '';
+    return (participantId === 'human' ? game.winnerId === 'human' : game.winnerId === participantId)
+      ? t('botScoreVictory')
+      : t('botScoreDefeat');
+  };
+  return [
+    { id: 'human', name: t('you'), score: Number(game.score) || 0, result: resultFor('human') },
+    ...game.botPlayers.map((bot) => ({ id: bot.id, name: botName(bot.id), score: Number(bot.score) || 0, result: resultFor(bot.id) })),
+  ].sort((a, b) => b.score - a.score);
+}
+
+function renderBotScores() {
+  const standings = botScoreStandings();
+  if (!standings.length) return '';
+  const rows = standings.map((player, index) => `<li>${escapeHtml(t('botScoreLine', index + 1, player.name, player.score, player.result))}</li>`).join('');
+  return `<section class="bot-scoreboard" aria-labelledby="bot-scoreboard-heading"><h2 id="bot-scoreboard-heading">${escapeHtml(t('botScoreHeading', game.status))}</h2><ol>${rows}</ol></section>`;
+}
+
+function botScoreLines() {
+  return botScoreStandings().map((player, index) => t('botScoreLine', index + 1, player.name, player.score, player.result));
+}
+
+function botScoreAnnouncement() {
+  const lines = botScoreLines();
+  return lines.length ? t('botScoreFinal', lines.join('. ')) : '';
+}
+
 function finishBotMatch(message, sound) {
   if (game?.mode !== 'bots') return;
+  awardResultIfNeeded();
   saveBotScoreIfNeeded();
   localStorage.removeItem(SAVED_GAME_KEY);
   screen = 'game';
   selected = null;
   mobileSection = 'board';
   render();
-  announce(message, sound);
+  announce(`${message} ${botScoreAnnouncement()}`, sound);
   if (botMatchEndTimer) window.clearTimeout(botMatchEndTimer);
   botMatchEndTimer = window.setTimeout(() => {
     if (game?.mode === 'bots' && ['won', 'blocked'].includes(game.status) && screen === 'game') returnFinishedBotMatchToMenu();
-  }, 3500);
+  }, BOT_MATCH_END_DISPLAY_MS);
 }
 
 function applySettings() {
@@ -288,14 +340,30 @@ function readBotAppearance(id) {
   announce(t(key));
 }
 
+function migrateScoreEntry(entry) {
+  if (Number(entry.scoreVersion) >= MATCH_SCORE_VERSION) return entry;
+  const victory = ['victory', 'Vitória', 'Victory'].includes(entry.result);
+  const defeat = ['defeat', 'Derrota', 'Defeat'].includes(entry.result);
+  let score = Number(entry.score);
+  if (entry.mode === 'bots') score = victory ? MATCH_WIN_BONUS : -MATCH_LOSS_PENALTY;
+  else if (entry.mode === 'record' && victory) score += MATCH_WIN_BONUS - 100;
+  else if (entry.mode === 'record' && defeat) score += 100 - MATCH_LOSS_PENALTY;
+  return { ...entry, score, scoreVersion: MATCH_SCORE_VERSION };
+}
+
 function scoreboardEntries() {
   try {
     const entries = JSON.parse(localStorage.getItem(SCOREBOARD_KEY) || '[]');
     if (!Array.isArray(entries)) return [];
-    return entries
-      .filter((entry) => Number.isFinite(Number(entry.score)))
-      .sort((a, b) => Number(b.score) - Number(a.score))
-      .slice(0, 3);
+    let migrated = false;
+    const validEntries = entries.filter((entry) => entry && Number.isFinite(Number(entry.score))).map((entry) => {
+      if (Number(entry.scoreVersion) >= MATCH_SCORE_VERSION) return entry;
+      migrated = true;
+      return migrateScoreEntry(entry);
+    });
+    const sortedEntries = validEntries.sort((a, b) => Number(b.score) - Number(a.score)).slice(0, 3);
+    if (migrated) localStorage.setItem(SCOREBOARD_KEY, JSON.stringify(sortedEntries));
+    return sortedEntries;
   } catch { return []; }
 }
 
@@ -401,7 +469,8 @@ function renderGame() {
   const gameTitle = isRecordGame() ? t('recordGameTitle') : game.mode === 'bots' ? t('botsGameTitle') : t('gameTitle');
   const undoExtra = `class="secondary" aria-keyshortcuts="Control+Z" ${game.status !== 'playing' || game.mode === 'bots' ? 'disabled' : ''}`;
   const scoreText = isRecordGame() ? `<p class="game-score" aria-live="polite">${escapeHtml(t('scoreLabel', game.score))}</p>` : '';
-  const scoreDetails = isRecordGame() && game.status !== 'playing' ? `<p class="score-breakdown">${escapeHtml(t('scoreBreakdown', game.usedCardPoints, -game.drawnCardPoints, game.invalidMoves * 3, game.stackBonuses * 5, game.cyclePenalties * 5, game.undoCount * 10))}</p>` : '';
+  const botScores = game.mode === 'bots' ? renderBotScores() : '';
+  const scoreDetails = isRecordGame() && game.status !== 'playing' ? `<p class="score-breakdown">${escapeHtml(t('scoreBreakdown', game.usedCardPoints, -game.drawnCardPoints, game.invalidMoves * 3, game.stackBonuses * 5, game.cyclePenalties * 5, game.undoCount * 10, game.status === 'won' ? t('scoreVictory') : t('scoreDefeat')))}</p>` : '';
   handFocusIndex = game.hand.length ? Math.min(handFocusIndex, game.hand.length - 1) : 0;
   const hand = game.hand.map((card, index) => {
     const isSelected = selected?.zone === 'hand' && selected.index === index;
@@ -423,7 +492,7 @@ function renderGame() {
   </div>`;
   const boardSection = `<section class="mobile-game-section board-section${mobileSection === 'board' ? '' : ' mobile-section-hidden'}" data-mobile-section="board" aria-labelledby="board-section-heading"><h2 id="board-section-heading" class="mobile-section-title">${escapeHtml(t('boardSection'))}</h2>${board}</section>`;
   const handSection = `<section class="mobile-game-section hand-section-wrapper${mobileSection === 'hand' ? '' : ' mobile-section-hidden'}" data-mobile-section="hand" aria-labelledby="hand-section-heading"><h2 id="hand-section-heading" class="mobile-section-title">${escapeHtml(t('handSection'))}</h2><section class="hand-section panel" role="listbox" tabindex="0" data-focus-zone="hand" aria-labelledby="hand-heading" aria-activedescendant="${game.hand.length ? `hand-card-${handFocusIndex}` : ''}"><h3 id="hand-heading">${escapeHtml(t('hand'))} <span class="legend">(${escapeHtml(t('cardsCount', game.hand.length))})</span></h3><div class="hand">${hand || `<p>${escapeHtml(t('victory'))}</p>`}</div></section></section>`;
-  const mobileControls = `<section class="mobile-game-section controls-section${mobileSection === 'controls' ? '' : ' mobile-section-hidden'}" data-mobile-section="controls" aria-labelledby="controls-section-heading"><h2 id="controls-section-heading" class="mobile-section-title">${escapeHtml(t('controlsSection'))}</h2><div class="mobile-control-list">${game.mode === 'bots' && game.status === 'playing' && game.activeTurn === 0 ? button(t('passTurn'), 'pass-turn', 'class="secondary" aria-keyshortcuts="N"') : ''}${button(t('backMainMenu'), 'back-menu', 'class="secondary" aria-keyshortcuts="Escape"')}${button(t('help'), 'menu-help', 'class="secondary" aria-keyshortcuts="H"')}${isRecordGame() ? button(t('checkScore'), 'check-score', 'class="secondary" aria-keyshortcuts="S"') : ''}${button(t('undo'), 'undo', undoExtra)}</div></section>`;
+  const mobileControls = `<section class="mobile-game-section controls-section${mobileSection === 'controls' ? '' : ' mobile-section-hidden'}" data-mobile-section="controls" aria-labelledby="controls-section-heading"><h2 id="controls-section-heading" class="mobile-section-title">${escapeHtml(t('controlsSection'))}</h2><div class="mobile-control-list">${game.mode === 'bots' && game.status === 'playing' && game.activeTurn === 0 ? button(t('passTurn'), 'pass-turn', 'class="secondary" aria-keyshortcuts="N"') : ''}${button(t('backMainMenu'), 'back-menu', 'class="secondary" aria-keyshortcuts="Escape"')}${button(t('help'), 'menu-help', 'class="secondary" aria-keyshortcuts="H"')}${isRecordGame() || game.mode === 'bots' ? button(t('checkScore'), 'check-score', 'class="secondary" aria-keyshortcuts="S"') : ''}${button(t('undo'), 'undo', undoExtra)}</div></section>`;
   const turnSummary = game.mode === 'bots' ? `<p class="game-turn">${escapeHtml(t('botMatchTurnHint'))}</p>` : '';
   const dialogueLog = game.mode === 'bots' && Array.isArray(game.botDialogueLog) ? game.botDialogueLog : [];
   const latestDialogue = dialogueLog.at(-1);
@@ -434,7 +503,7 @@ function renderGame() {
   const mobileNavigation = `<section class="mobile-section-navigation" aria-labelledby="mobile-navigation-heading"><h2 id="mobile-navigation-heading">${escapeHtml(t('sectionNavigation'))}</h2><nav class="mobile-section-nav-list" aria-label="${escapeHtml(t('sectionNavigation'))}">${button(t('boardSection'), 'mobile-section', `class="secondary" data-section="board" aria-controls="board-section-heading" aria-pressed="${mobileSection === 'board'}"`)}${button(t('handSection'), 'mobile-section', `class="secondary" data-section="hand" aria-controls="hand-section-heading" aria-pressed="${mobileSection === 'hand'}"`)}${button(t('controlsSection'), 'mobile-section', `class="secondary" data-section="controls" aria-controls="controls-section-heading" aria-pressed="${mobileSection === 'controls'}"`)}</nav></section>`;
   const currentSectionHeading = `<h2 id="mobile-current-section" class="mobile-current-section" tabindex="-1">${escapeHtml(t('currentSection', mobileSection === 'board' ? t('boardSection') : mobileSection === 'hand' ? t('handSection') : t('controlsSection')))}</h2>`;
   app.innerHTML = `<div class="screen">
-    <header class="game-header"><div><h1>${escapeHtml(gameTitle)}</h1><p id="game-instructions" class="game-status">${escapeHtml(statusText)}</p>${botDialogue}${scoreText}${scoreDetails}</div><div class="inline-actions desktop-controls">${game.mode === 'bots' && game.status === 'playing' && game.activeTurn === 0 ? button(t('passTurn'), 'pass-turn', 'class="secondary" aria-keyshortcuts="N" tabindex="-1"') : ''} ${button(t('undo'), 'undo', `${undoExtra} tabindex="-1"`)} ${button(t('newGameShort'), 'new-game', 'class="secondary" tabindex="-1"')} ${button(t('menu'), 'back-menu', 'class="secondary" tabindex="-1" aria-keyshortcuts="Escape"')}</div></header>
+    <header class="game-header"><div><h1>${escapeHtml(gameTitle)}</h1><p id="game-instructions" class="game-status">${escapeHtml(statusText)}</p>${botDialogue}${scoreText}${botScores}${scoreDetails}</div><div class="inline-actions desktop-controls">${game.mode === 'bots' && game.status === 'playing' && game.activeTurn === 0 ? button(t('passTurn'), 'pass-turn', 'class="secondary" aria-keyshortcuts="N" tabindex="-1"') : ''} ${button(t('undo'), 'undo', `${undoExtra} tabindex="-1"`)} ${button(t('newGameShort'), 'new-game', 'class="secondary" tabindex="-1"')} ${button(t('menu'), 'back-menu', 'class="secondary" tabindex="-1" aria-keyshortcuts="Escape"')}</div></header>
     <div class="game-layout">
       ${mobileNavigation}
       ${currentSectionHeading}
@@ -586,15 +655,12 @@ function render() {
 }
 
 function scoreMove(before, source, destination, moved) {
-  if (!isRecordGame()) return;
+  if (!isRecordGame() && game?.mode !== 'bots') return;
   if (!game.scoredKingIds) game.scoredKingIds = [];
   const cardPoints = moved.reduce((sum, card) => sum + card.rank, 0);
   if (source.zone === 'hand') {
     game.usedCardPoints += cardPoints;
     game.score += cardPoints;
-    moved.filter((card) => card.rank === 13).forEach((card) => {
-      if (!game.scoredKingIds.includes(card.id)) game.scoredKingIds.push(card.id);
-    });
   }
   const destinationPilesBefore = before[destination.zone === 'foundation' ? 'foundations' : 'corners'];
   const destinationPileBefore = destinationPilesBefore[destination.index];
@@ -619,7 +685,7 @@ function scoreMove(before, source, destination, moved) {
 }
 
 function scoreInvalidMove() {
-  if (!isRecordGame() || game.status !== 'playing') return;
+  if ((!isRecordGame() && game?.mode !== 'bots') || game.status !== 'playing') return;
   game.invalidMoves += 1;
   game.score -= 3;
 }
@@ -627,7 +693,7 @@ function scoreInvalidMove() {
 function saveScoreIfNeeded() {
   if (!isRecordGame() || game.scoreSaved || !['won', 'blocked'].includes(game.status)) return;
   const entries = scoreboardEntries();
-  entries.push({ score: game.score, mode: 'record', result: game.status === 'won' ? 'victory' : 'defeat', date: new Date().toISOString() });
+  entries.push({ score: game.score, mode: 'record', result: game.status === 'won' ? 'victory' : 'defeat', scoreVersion: MATCH_SCORE_VERSION, date: new Date().toISOString() });
   entries.sort((a, b) => Number(b.score) - Number(a.score));
   localStorage.setItem(SCOREBOARD_KEY, JSON.stringify(entries.slice(0, 3)));
   game.scoreSaved = true;
@@ -637,17 +703,23 @@ function saveBotScoreIfNeeded() {
   if (game?.mode !== 'bots' || game.botScoreSaved || !['won', 'blocked'].includes(game.status)) return;
   const humanWon = game.status === 'won' && game.winnerId === 'human';
   const entries = scoreboardEntries();
-  entries.push({ score: humanWon ? 100 : -100, mode: 'bots', result: humanWon ? 'victory' : 'defeat', date: new Date().toISOString() });
+  entries.push({ score: game.score, mode: 'bots', result: humanWon ? 'victory' : 'defeat', scoreVersion: MATCH_SCORE_VERSION, date: new Date().toISOString() });
   entries.sort((a, b) => Number(b.score) - Number(a.score));
   localStorage.setItem(SCOREBOARD_KEY, JSON.stringify(entries.slice(0, 3)));
   game.botScoreSaved = true;
 }
 
 function awardResultIfNeeded() {
-  if (!isRecordGame() || game.resultAwarded || !['won', 'blocked'].includes(game.status)) return;
-  game.score += game.status === 'won' ? 100 : -100;
+  if ((!isRecordGame() && game?.mode !== 'bots') || game.resultAwarded || !['won', 'blocked'].includes(game.status)) return;
+  const humanWon = game.status === 'won' && (game.mode !== 'bots' || game.winnerId === 'human');
+  game.score += humanWon ? MATCH_WIN_BONUS : -MATCH_LOSS_PENALTY;
+  if (game.mode === 'bots') {
+    game.botPlayers.forEach((bot) => {
+      bot.score = (bot.score || 0) + (game.status === 'won' && game.winnerId === bot.id ? MATCH_WIN_BONUS : -MATCH_LOSS_PENALTY);
+    });
+  }
   game.resultAwarded = true;
-  saveScoreIfNeeded();
+  if (isRecordGame()) saveScoreIfNeeded();
 }
 
 function announceResult() {
@@ -656,6 +728,10 @@ function announceResult() {
 }
 
 function checkScore() {
+  if (game?.mode === 'bots') {
+    announce(`${t('scoreLabel', game.score)}. ${t('botScoresCurrent', botScoreLines().join('. '))}`, 'confirm');
+    return;
+  }
   if (!isRecordGame()) return;
   announce(t('scoreLabel', game.score), 'confirm');
 }
@@ -728,7 +804,7 @@ function handleDraw() {
     game.turnDrew = true;
     game.turnActionCount = (game.turnActionCount || 0) + 1;
   }
-  if (isRecordGame() && card.rank !== 13) {
+  if ((isRecordGame() || game.mode === 'bots') && card.rank !== 13) {
     game.drawnCardPoints += card.rank;
     game.score -= card.rank;
   }
@@ -774,7 +850,7 @@ function countPlayableHandCards(hand, foundations, corners) {
 // Mirror Record Solo point deltas; only Lion uses them to choose moves.
 function botMoveScore(bot, source, destination, moved, destinationPile) {
   let scoreDelta = source.zone === 'hand' ? moved.reduce((sum, card) => sum + card.rank, 0) : 0;
-  let kingIdToScore = source.zone === 'hand' ? moved.find((card) => card.rank === 13)?.id || null : null;
+  let kingIdToScore = null;
   const scoredKingIds = Array.isArray(bot.scoredKingIds) ? bot.scoredKingIds : [];
   if (source.zone !== 'hand' && destination.zone === 'corner' && !destinationPile.length
     && moved[0]?.rank === 13 && !scoredKingIds.includes(moved[0].id)) {
@@ -788,12 +864,13 @@ function botMoveScore(bot, source, destination, moved, destinationPile) {
   const repeatedReturn = (bot.moveLog || []).some((entry) => entry.source === destinationKey
     && entry.destination === sourceKey && JSON.stringify(entry.movedIds) === JSON.stringify(movedIds));
   if (repeatedReturn) scoreDelta -= 5;
-  if (source.zone === 'hand' && bot.hand.length === 1) scoreDelta += 100;
-  return { scoreDelta, kingIdToScore, movedIds };
+  const actionScoreDelta = scoreDelta;
+  if (source.zone === 'hand' && bot.hand.length === 1) scoreDelta += MATCH_WIN_BONUS;
+  return { scoreDelta, actionScoreDelta, kingIdToScore, movedIds };
 }
 
 function recordBotMoveScore(bot, move) {
-  bot.score = (bot.score || 0) + move.scoreDelta;
+  bot.score = (bot.score || 0) + move.actionScoreDelta;
   bot.scoredKingIds = Array.isArray(bot.scoredKingIds) ? bot.scoredKingIds : [];
   if (move.kingIdToScore && !bot.scoredKingIds.includes(move.kingIdToScore)) bot.scoredKingIds.push(move.kingIdToScore);
   bot.moveLog = Array.isArray(bot.moveLog) ? bot.moveLog : [];
@@ -1064,6 +1141,7 @@ async function runBotTurn(turnIndex, initialSteps = 0) {
 
 function startGame(mode) {
   game = createGame(mode);
+  game.scoreVersion = MATCH_SCORE_VERSION;
   if (mode === 'bots') {
     game.botPlayers = selectedBotIds.map((id) => ({ id, hand: game.stock.splice(0, 7), score: 0, scoredKingIds: [], moveLog: [] }));
     game.activeTurn = 0; game.activeBotId = null; game.turnDrew = false; game.turnActionCount = 0; game.winnerId = null; game.botDialogueLog = [];
@@ -1280,7 +1358,7 @@ document.addEventListener('keydown', (event) => {
     render();
     return;
   }
-  if (screen === 'game' && isRecordGame() && !event.ctrlKey && !event.altKey && !event.metaKey && event.key.toLowerCase() === 's') {
+  if (screen === 'game' && (isRecordGame() || game?.mode === 'bots') && !event.ctrlKey && !event.altKey && !event.metaKey && event.key.toLowerCase() === 's') {
     event.preventDefault();
     checkScore();
     return;

@@ -136,6 +136,9 @@ h2 { margin-top: 0; }
 .game-header { display: flex; justify-content: space-between; gap: 1rem; align-items: start; flex-wrap: wrap; }
 .game-status { color: var(--muted); }
 .game-score { margin: 0.5rem 0 0; font-size: 1.1rem; }
+.bot-scoreboard { margin: 0.65rem 0; padding: 0.65rem 0.9rem; border-left: 0.3rem solid var(--accent); background: var(--surface-alt); }
+.bot-scoreboard h2 { margin: 0 0 0.35rem; font-size: 1rem; }
+.bot-scoreboard ol { margin: 0; padding-inline-start: 1.5rem; }
 .score-breakdown { max-width: 60ch; color: var(--muted); }
 
 .game-layout { display: grid; gap: 1.25rem; }
