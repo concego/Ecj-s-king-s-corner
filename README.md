@@ -3,7 +3,7 @@
 Versão web bilíngue e acessível de **Kings in the Corner**, criada pela Equipe Euconcegojogar.
 
 - Teste online: [GitHub Pages](https://concego.github.io/Ecj-s-king-s-corner/)
-- Release atual: [v0.2.0 — pré-release](https://github.com/concego/Ecj-s-king-s-corner/releases/tag/v0.2.0)
+- Release atual: [v0.3.0 — pré-release](https://github.com/concego/Ecj-s-king-s-corner/releases/tag/v0.3.0)
 
 O jogo oferece três modos:
 
@@ -17,7 +17,7 @@ O objetivo das partidas é esvaziar a mão. A pontuação mede o desempenho, mas
 
 - Interface em Português (Brasil) e English.
 - Menu inicial com iniciar jogo, Mural, opções e créditos.
-- Opções de idioma, sons, alto contraste, texto ampliado e redução de movimento.
+- Opções organizadas em submenus de Acessibilidade, Sons, Idioma e Perfil do jogador. O perfil permite nome opcional de até 24 caracteres, gênero e avatar de naipe, salvos localmente; o gênero altera apenas a saudação.
 - **Cachorro** é o bot mais fácil e distraído; **Leão** prioriza jogadas que dão mais pontos; **Raposa** é a mais difícil e busca deixar mais cartas jogáveis em seguida.
 - Os bots só movem pilhas quando isso abre uma jogada com carta. Nas partidas contra bots, o bloqueio é detectado quando o monte acaba e ninguém consegue jogar cartas: é imediato se não houver movimento legal de pilha; caso contrário, ocorre após três rodadas completas sem cartas jogadas.
 - Pontuação unificada nos modos Record solo e contra bots:
@@ -29,8 +29,9 @@ O objetivo das partidas é esvaziar a mão. A pontuação mede o desempenho, mas
   - Repetir o retorno exato de uma carta ou pilha subtrai 5 pontos.
   - Desfazer subtrai 10 pontos nos modos em que o recurso está disponível; desfazer fica desativado contra bots.
   - Vencer soma 10 pontos; perder ou ficar bloqueado subtrai 5.
-- Nas partidas contra bots, cada participante tem sua própria pontuação. O Mural registra a pontuação final do jogador; os recordes antigos são adaptados ao sistema unificado.
-- Mural acessível com as três maiores pontuações dos modos pontuados, salvo localmente neste dispositivo.
+- Nas partidas contra bots, o jogador e cada bot têm pontuações individuais. O Mural pode incluir seus nomes entre os três melhores resultados do modo. Registros antigos sem nome continuam como “Você”; pontuações individuais antigas dos bots não estão disponíveis.
+- Mural acessível com os três melhores participantes de cada modo pontuado, ordenados por pontos e com nome, pontuação e resultado, salvo localmente neste dispositivo.
+- Ao terminar qualquer modo, o resultado fica visível por sete segundos e depois a partida retorna ao menu principal.
 - Cartas desenhadas como SVG inline. A interface usa WCAG 2.2 AA como referência e não depende de cor, som, mouse ou arrastar e soltar para transmitir ou executar uma ação.
 - Pilhas movimentadas preservam todas as cartas. Anúncios informam a primeira e a última carta e a quantidade total.
 - Sons procedurais originais em WAV, gerados pelo script Python em `tools/generate_sounds.py`.
