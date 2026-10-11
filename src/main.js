@@ -1,4 +1,4 @@
-import { getText } from './i18n.js?v=mural-participants-finish-1';
+import { getText } from './i18n.js?v=klondike-1';
 import { playSound, setAudioEnabled } from './audio.js';
 import {
   RANK_BY_VALUE,
@@ -14,6 +14,14 @@ import {
   hasLegalPileMove,
   updateBlockedStatus,
 } from './game.js';
+import {
+  createKlondikeGame,
+  drawKlondikeStock,
+  klondikeCardName,
+  moveKlondikeCards,
+  klondikeSourceCards,
+  tableauFaceUpStart,
+} from './klondike.js?v=klondike-1';
 
 const app = document.querySelector('#app');
 const status = document.querySelector('#status');
@@ -21,6 +29,7 @@ const SAVED_GAME_KEY = 'ecj-kings-corner-game';
 const SETTINGS_KEY = 'ecj-kings-corner-settings';
 const SCOREBOARD_KEY = 'ecj-kings-corner-scoreboard';
 const SELECTED_BOTS_KEY = 'ecj-kings-corner-selected-bots';
+const KLONDIKE_DRAW_COUNT_KEY = 'ecj-kings-corner-klondike-draw-count';
 const BOT_DIALOGUE_PAUSE_MS = 3000;
 const MATCH_END_DISPLAY_MS = 7000;
 const BOT_STALL_ROUND_LIMIT = 3;
@@ -47,6 +56,8 @@ let handFocusIndex = 0;
 let boardFocus = { row: 1, column: 1 };
 let mobileSection = 'board';
 let selectedBotIds = loadSelectedBots();
+let selectedKlondikeDrawCount = loadKlondikeDrawCount();
+let klondikeFocus = { row: 0, column: 0, cardIndex: 0 };
 let matchEndTimer = null;
 
 function loadSelectedBots() {
@@ -56,6 +67,11 @@ function loadSelectedBots() {
   } catch {
     return [];
   }
+}
+
+function loadKlondikeDrawCount() {
+  const saved = Number(localStorage.getItem(KLONDIKE_DRAW_COUNT_KEY));
+  return [1, 3].includes(saved) ? saved : 3;
 }
 
 function defaultProfile() {
@@ -93,6 +109,17 @@ function saveSettings() {
 function loadGame() {
   try {
     const saved = JSON.parse(localStorage.getItem(SAVED_GAME_KEY) || 'null');
+    if (!saved) return null;
+    if (saved.mode === 'klondike') {
+      if (!Array.isArray(saved.stock) || !Array.isArray(saved.waste) || !Array.isArray(saved.tableau) || saved.tableau.length !== 7 || !Array.isArray(saved.foundations) || saved.foundations.length !== 4 || saved.foundations.some((pile) => !Array.isArray(pile.cards))) return null;
+      return {
+        ...saved,
+        drawCount: [1, 3].includes(Number(saved.drawCount)) ? Number(saved.drawCount) : 3,
+        moves: Number(saved.moves) || 0,
+        draws: Number(saved.draws) || 0,
+        status: ['playing', 'won'].includes(saved.status) ? saved.status : 'playing',
+      };
+    }
     if (!saved?.hand || !saved?.stock || !saved?.foundations || !saved?.corners) return null;
     const loaded = {
       mode: 'training', score: 0, usedCardPoints: 0, drawnCardPoints: 0,
@@ -362,6 +389,16 @@ function renderCredits() {
 }
 
 function renderHelp() {
+  if (game?.mode === 'klondike' && previousScreen === 'game') {
+    const rules = ['klondikeHelpDeck', 'klondikeHelpTableau', 'klondikeHelpFoundations', 'klondikeHelpStock'];
+    app.innerHTML = screenShell(t('helpTitle'), '', `<div class="panel help-content klondike-help">
+      <section aria-labelledby="klondike-help-objective"><h2 id="klondike-help-objective">${escapeHtml(t('klondikeHelpObjectiveHeading'))}</h2><p>${escapeHtml(t('klondikeHelpObjective'))}</p></section>
+      <section aria-labelledby="klondike-help-rules"><h2 id="klondike-help-rules">${escapeHtml(t('klondikeHelpRulesHeading'))}</h2><ul>${rules.map((key) => `<li>${escapeHtml(t(key))}</li>`).join('')}</ul></section>
+      <section aria-labelledby="klondike-help-controls"><h2 id="klondike-help-controls">${escapeHtml(t('klondikeHelpControlsHeading'))}</h2><ul>${['klondikeHelpArrows', 'klondikeHelpEnter', 'helpKeyUndo', 'helpKeyEscape', 'helpKeyH'].map((key) => `<li>${escapeHtml(t(key))}</li>`).join('')}</ul></section>
+      <div class="button-list">${button(t('back'), 'back-help', 'class="secondary"')}</div>
+    </div>`);
+    return;
+  }
   const keyboardList = ['helpKeyTab', 'helpKeyArrows', 'helpKeyEnter', 'helpKeyUndo', 'helpKeyEscape', 'helpKeyH', 'helpKeyScore', 'helpKeyPass']
     .map((key) => `<li>${escapeHtml(t(key))}</li>`).join('');
   const mobileList = ['helpMobileCards', 'helpMobileBoard', 'helpMobileStock', 'helpMobileSections']
@@ -394,8 +431,20 @@ function renderNewGame() {
       <div class="setting"><div><strong>${escapeHtml(t('classic'))}</strong><small>${escapeHtml(t('classicDescription'))}</small></div>${button(t('startClassic'), 'start-training')}</div>
       <div class="setting"><div><strong>${escapeHtml(t('recordSolo'))}</strong><small>${escapeHtml(t('recordSoloDescription'))}</small></div>${button(t('startRecordSolo'), 'start-record')}</div>
       <div class="setting"><div><strong>${escapeHtml(t('botsMode'))}</strong><small>${escapeHtml(t('botSelectionNote'))}</small></div>${button(t('botsMode'), 'open-bot-setup', 'class="secondary"')}</div>
+      <div class="setting"><div><strong>${escapeHtml(t('klondikeTitle'))}</strong><small>${escapeHtml(t('klondikeDescription'))}</small></div>${button(t('klondikeTitle'), 'open-klondike-setup', 'class="secondary"')}</div>
     </fieldset>
     <div class="inline-actions">${button(t('back'), 'back-game-menu', 'class="secondary"')}</div>
+  </div>`);
+}
+
+function renderKlondikeSetup() {
+  app.innerHTML = screenShell(t('klondikeTitle'), t('klondikeDescription'), `<div class="panel">
+    <fieldset class="klondike-draw-choice">
+      <legend>${escapeHtml(t('klondikeDrawChoice'))}</legend>
+      ${button(t('klondikeDrawOne'), 'set-klondike-draw-count', `class="${selectedKlondikeDrawCount === 1 ? '' : 'secondary'}" data-count="1" aria-pressed="${selectedKlondikeDrawCount === 1}"`)}
+      ${button(t('klondikeDrawThree'), 'set-klondike-draw-count', `class="${selectedKlondikeDrawCount === 3 ? '' : 'secondary'}" data-count="3" aria-pressed="${selectedKlondikeDrawCount === 3}"`)}
+    </fieldset>
+    <div class="button-list">${button(t('startKlondike'), 'start-klondike')}${button(t('back'), 'back-klondike-setup', 'class="secondary"')}</div>
   </div>`);
 }
 
@@ -603,7 +652,108 @@ function isRecordGame() { return game?.mode === 'record'; }
 function botName(id) { return id ? t(`bot${id[0].toUpperCase()}${id.slice(1)}`) : ''; }
 function isHumanTurn() { return game?.mode !== 'bots' || game.activeTurn === 0; }
 
+function klondikeSuitName(suit) {
+  const details = SUIT_BY_ID[suit];
+  return locale === 'pt-BR' ? details?.pt || suit : details?.en || suit;
+}
+
+function klondikeTopDescriptor(column) {
+  if (column === 0) return { zone: 'stock' };
+  if (column === 1) return { zone: 'waste', index: game.waste.length - 1, indexCard: game.waste.length - 1 };
+  if (column >= 3) {
+    const index = column - 3;
+    return { zone: 'foundation', index, indexCard: game.foundations[index].cards.length - 1 };
+  }
+  return null;
+}
+
+function sameKlondikeSource(first, second) {
+  return first?.zone === second?.zone && first?.index === second?.index && first?.indexCard === second?.indexCard;
+}
+
+function klondikeSourceAt(row, column, cardIndex = 0) {
+  if (row === 0) return klondikeTopDescriptor(column);
+  return { zone: 'tableau', index: column, indexCard: cardIndex };
+}
+
+function klondikePositionLabel(row, column, cardIndex = 0) {
+  if (row === 0 && column === 0) return t('klondikeStockLabel', game.stock.length, game.drawCount);
+  if (row === 0 && column === 1) {
+    const top = game.waste[game.waste.length - 1];
+    return top ? t('klondikeWasteTop', klondikeCardName(top, locale), game.waste.length) : t('klondikeWasteEmpty');
+  }
+  if (row === 0 && column >= 3) {
+    const foundation = game.foundations[column - 3];
+    const top = foundation.cards[foundation.cards.length - 1];
+    const suit = klondikeSuitName(foundation.suit);
+    return top ? t('klondikeFoundationTop', suit, klondikeCardName(top, locale), foundation.cards.length) : t('klondikeFoundationEmpty', suit);
+  }
+  const pile = game.tableau[column];
+  if (!pile.length) return t('klondikeTableauEmpty', column + 1);
+  const card = pile[cardIndex];
+  if (!card?.faceUp) return t('klondikeTableauEmpty', column + 1);
+  return t('klondikeTableauCard', column + 1, tableauFaceUpStart(pile), klondikeCardName(card, locale), pile.length - cardIndex);
+}
+
+function renderKlondikeTopSlot(column) {
+  if (column === 2) return '<div class="klondike-top-gap" role="presentation" aria-hidden="true"></div>';
+  const descriptor = klondikeTopDescriptor(column);
+  const selectedNow = sameKlondikeSource(selected, descriptor);
+  const focused = klondikeFocus.row === 0 && klondikeFocus.column === column;
+  let content = '';
+  let visibleLabel = '';
+  if (column === 0) { content = game.stock.length ? cardSvg(null, true) : `<span>${escapeHtml(t('emptyPile'))}</span>`; visibleLabel = t('stock'); }
+  else if (column === 1) { content = game.waste.length ? cardSvg(game.waste[game.waste.length - 1]) : `<span>${escapeHtml(t('emptyPile'))}</span>`; visibleLabel = t('klondikeWasteName'); }
+  else {
+    const foundation = game.foundations[column - 3];
+    const top = foundation.cards[foundation.cards.length - 1];
+    content = top ? cardSvg(top) : `<span>${escapeHtml(t('emptyPile'))}</span>`;
+    visibleLabel = klondikeSuitName(foundation.suit);
+  }
+  const label = klondikePositionLabel(0, column);
+  return `<button type="button" class="klondike-slot${focused ? ' focused' : ''}${selectedNow ? ' selected' : ''}" role="gridcell" id="klondike-focus-0-${column}-0" data-action="klondike-activate" data-row="0" data-column="${column}" data-card-index="0" aria-label="${escapeHtml(label)}" aria-pressed="${selectedNow}" aria-rowindex="1" aria-colindex="${column + 1}" tabindex="-1">${content}<span class="klondike-pile-label" aria-hidden="true">${escapeHtml(visibleLabel)}</span></button>`;
+}
+
+function renderKlondikeTableauColumn(column) {
+  const pile = game.tableau[column];
+  const faceUpStart = tableauFaceUpStart(pile);
+  if (!pile.length) {
+    const focused = klondikeFocus.row === 1 && klondikeFocus.column === column;
+    return `<div class="klondike-column" role="gridcell" aria-label="${escapeHtml(t('klondikeTableauEmpty', column + 1))}"><button type="button" class="klondike-slot klondike-empty-column${focused ? ' focused' : ''}" id="klondike-focus-1-${column}-0" data-action="klondike-activate" data-row="1" data-column="${column}" data-card-index="0" aria-label="${escapeHtml(t('klondikeTableauEmpty', column + 1))}" aria-pressed="false" tabindex="-1">${escapeHtml(t('emptyPile'))}</button></div>`;
+  }
+  const backs = pile.slice(0, faceUpStart).map(() => `<span class="klondike-card-back" aria-hidden="true">${cardSvg(null, true)}</span>`).join('');
+  const faceUpCards = pile.slice(faceUpStart).map((card, offset) => {
+    const cardIndex = faceUpStart + offset;
+    const focused = klondikeFocus.row === 1 && klondikeFocus.column === column && klondikeFocus.cardIndex === cardIndex;
+    const source = { zone: 'tableau', index: column, indexCard: cardIndex };
+    const selectedNow = sameKlondikeSource(selected, source);
+    const label = klondikePositionLabel(1, column, cardIndex);
+    return `<button type="button" class="klondike-card${focused ? ' focused' : ''}${selectedNow ? ' selected' : ''}" id="klondike-focus-1-${column}-${cardIndex}" data-action="klondike-activate" data-row="1" data-column="${column}" data-card-index="${cardIndex}" aria-label="${escapeHtml(label)}" aria-pressed="${selectedNow}" tabindex="-1">${cardSvg(card)}</button>`;
+  }).join('');
+  return `<div class="klondike-column" role="gridcell" aria-label="${escapeHtml(t('klondikeColumnLabel', column + 1, pile.length))}"><div class="klondike-card-stack">${backs}${faceUpCards}</div></div>`;
+}
+
+function renderKlondikeGame() {
+  normalizeKlondikeFocus();
+  const statusText = game.status === 'won' ? t('klondikeWonStatus') : t('klondikeInstructions');
+  const activeId = klondikeFocus.row === 0
+    ? `klondike-focus-0-${klondikeFocus.column}-0`
+    : game.tableau[klondikeFocus.column].length
+      ? `klondike-focus-1-${klondikeFocus.column}-${klondikeFocus.cardIndex}`
+      : `klondike-focus-1-${klondikeFocus.column}-0`;
+  const undoExtra = `class="secondary" aria-keyshortcuts="Control+Z" ${game.status !== 'playing' ? 'disabled' : ''}`;
+  app.innerHTML = `<div class="screen klondike-screen">
+    <header class="game-header"><div><h1>${escapeHtml(t('klondikeTitle'))}</h1><p class="game-status">${escapeHtml(statusText)}</p></div><div class="inline-actions klondike-controls">${button(t('undo'), 'undo', undoExtra)}${button(t('newGameShort'), 'new-game', 'class="secondary"')}${button(t('menu'), 'back-menu', 'class="secondary" aria-keyshortcuts="Escape"')}${button(t('help'), 'menu-help', 'class="secondary" aria-keyshortcuts="H"')}</div></header>
+    <p class="klondike-summary">${escapeHtml(t('movesCount', game.moves))} — ${escapeHtml(t('klondikeDrawChoice'))}: ${game.drawCount}</p>
+    <div class="klondike-board-scroll"><div class="klondike-board" role="grid" tabindex="0" data-focus-zone="klondike-board" aria-label="${escapeHtml(t('klondikeGridLabel'))}" aria-activedescendant="${activeId}">
+      <div class="klondike-top-row" role="row">${Array.from({ length: 7 }, (_, column) => renderKlondikeTopSlot(column)).join('')}</div>
+      <div class="klondike-tableau-row" role="row">${Array.from({ length: 7 }, (_, column) => renderKlondikeTableauColumn(column)).join('')}</div>
+    </div></div>
+  </div>`;
+}
+
 function renderGame() {
+  if (game?.mode === 'klondike') { renderKlondikeGame(); return; }
   const names = [t('foundationNorth'), t('foundationEast'), t('foundationSouth'), t('foundationWest')];
   const corners = [t('cornerNorthWest'), t('cornerNorthEast'), t('cornerSouthEast'), t('cornerSouthWest')];
   const statusText = game.status === 'won' ? t('winnerStatus', game.winnerId === 'human' ? t('you') : botName(game.winnerId)) : game.status === 'blocked' ? t('blocked') : game.mode === 'bots' ? (game.activeTurn === 0 ? t('yourTurn') : t('botTurn', botName(game.activeBotId))) : t('instructions');
@@ -751,12 +901,17 @@ function focusDescriptor(element) {
     locale: element.dataset.locale,
     zone: element.dataset.zone,
     index: element.dataset.index,
+    count: element.dataset.count,
     botId: element.dataset.botId,
   };
 }
 
 function restoreFocus(descriptor) {
   if (!descriptor) return focusFirstControl();
+  if (descriptor.action === 'klondike-activate') {
+    app.querySelector('[data-focus-zone="klondike-board"]')?.focus({ preventScroll: true });
+    return;
+  }
   if (descriptor.focusZone) {
     const zone = app.querySelector(`[data-focus-zone="${descriptor.focusZone}"]`);
     if (zone) zone.focus({ preventScroll: true });
@@ -768,6 +923,7 @@ function restoreFocus(descriptor) {
       && element.dataset.locale === descriptor.locale
       && element.dataset.zone === descriptor.zone
       && element.dataset.index === descriptor.index
+      && element.dataset.count === descriptor.count
       && element.dataset.botId === descriptor.botId
       && !element.disabled;
   });
@@ -789,11 +945,13 @@ function render() {
   if (screen === 'help') renderHelp();
   if (screen === 'game-menu') renderGameMenu();
   if (screen === 'new-game') renderNewGame();
+  if (screen === 'klondike-setup') renderKlondikeSetup();
   if (screen === 'bot-match-setup') renderBotMatchSetup();
   if (screen === 'bot-selection') renderBotSelection();
   if (screen === 'mural') renderMural();
   if (screen === 'game') renderGame();
   bindActions();
+  bindKlondikeGrid();
   setupArrowNavigation();
   bindGameZones();
   restoreFocus(previousFocus);
@@ -1320,6 +1478,29 @@ function startClassic() { startGame('training'); }
 function startRecordSolo() { startGame('record'); }
 function startBotMatch() { if (!selectedBotIds.length) return; startGame('bots'); }
 
+function startKlondikeGame() {
+  if (matchEndTimer) window.clearTimeout(matchEndTimer);
+  matchEndTimer = null;
+  game = createKlondikeGame({ drawCount: selectedKlondikeDrawCount });
+  history = [];
+  selected = null;
+  klondikeFocus = { row: 0, column: 0, cardIndex: 0 };
+  saveGame();
+  screen = 'game';
+  announce(t('gameSaved'), 'confirm');
+  render();
+  app.querySelector('[data-focus-zone="klondike-board"]')?.focus({ preventScroll: true });
+}
+
+function setKlondikeDrawCount(value) {
+  const count = Number(value);
+  if (![1, 3].includes(count)) return;
+  selectedKlondikeDrawCount = count;
+  localStorage.setItem(KLONDIKE_DRAW_COUNT_KEY, String(count));
+  announce(t('klondikeDrawChoiceSaved', count), 'confirm');
+  render();
+}
+
 function chooseLanguage(value) {
   locale = value;
   localStorage.setItem('ecj-kings-corner-locale', locale);
@@ -1375,12 +1556,23 @@ function bindActions() {
         return;
       }
       if (action === 'menu-credits') { screen = 'credits'; playSound('menuOpen'); render(); return; }
-      if (action === 'back-help') { screen = previousScreen; playSound('menuBack'); render(); return; }
+      if (action === 'back-help') {
+        screen = previousScreen;
+        playSound('menuBack');
+        render();
+        if (screen === 'game' && game?.mode === 'klondike' && game.status === 'won') scheduleFinishedMatchReturn();
+        return;
+      }
       if (action === 'back-options') { screen = 'options'; playSound('menuBack'); render(); return; }
       if (action === 'back-menu') { cancelPendingMatchMenuReturn(); screen = 'menu'; selected = null; playSound('menuBack'); render(); return; }
       if (action === 'back-game-menu') { screen = 'game-menu'; selected = null; playSound('menuBack'); render(); return; }
       if (action === 'continue-game' && game) { screen = 'game'; selected = null; playSound('menuOpen'); render(); if (game.mode === 'bots' && game.activeTurn > 0) runBotTurn(game.activeTurn, 0); return; }
       if (action === 'new-game') { screen = 'new-game'; selected = null; playSound('menuOpen'); render(); return; }
+      if (action === 'open-klondike-setup') { screen = 'klondike-setup'; playSound('menuOpen'); render(); return; }
+      if (action === 'back-klondike-setup') { screen = 'new-game'; playSound('menuBack'); render(); return; }
+      if (action === 'set-klondike-draw-count') return setKlondikeDrawCount(element.dataset.count);
+      if (action === 'start-klondike') return startKlondikeGame();
+      if (action === 'klondike-activate') return activateKlondikePosition(Number(element.dataset.row), Number(element.dataset.column), Number(element.dataset.cardIndex));
       if (action === 'start-classic') return startClassic();
       if (action === 'start-training') return startClassic();
       if (action === 'start-record') return startRecordSolo();
@@ -1493,6 +1685,174 @@ function bindGameZones() {
   });
 }
 
+function normalizeKlondikeFocus() {
+  if (!game || game.mode !== 'klondike') return;
+  if (klondikeFocus.row === 0) {
+    klondikeFocus.column = Math.max(0, Math.min(6, Number(klondikeFocus.column) || 0));
+    if (klondikeFocus.column === 2) klondikeFocus.column = 1;
+    klondikeFocus.cardIndex = 0;
+    return;
+  }
+  klondikeFocus.row = 1;
+  klondikeFocus.column = Math.max(0, Math.min(6, Number(klondikeFocus.column) || 0));
+  const pile = game.tableau[klondikeFocus.column];
+  if (!pile?.length) { klondikeFocus.cardIndex = 0; return; }
+  const firstFaceUp = tableauFaceUpStart(pile);
+  klondikeFocus.cardIndex = Math.max(firstFaceUp, Math.min(pile.length - 1, Number(klondikeFocus.cardIndex) || firstFaceUp));
+}
+
+function klondikeFocusElementId() {
+  normalizeKlondikeFocus();
+  if (klondikeFocus.row === 0) return `klondike-focus-0-${klondikeFocus.column}-0`;
+  return `klondike-focus-1-${klondikeFocus.column}-${klondikeFocus.cardIndex}`;
+}
+
+function syncKlondikeFocusDom() {
+  const board = app.querySelector('[data-focus-zone="klondike-board"]');
+  if (!board) return;
+  const id = klondikeFocusElementId();
+  board.setAttribute('aria-activedescendant', id);
+  board.querySelectorAll('.focused').forEach((element) => element.classList.remove('focused'));
+  const target = document.getElementById(id);
+  target?.classList.add('focused');
+  target?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+}
+
+function moveKlondikeFocus(direction) {
+  normalizeKlondikeFocus();
+  const before = { ...klondikeFocus };
+  if (klondikeFocus.row === 0) {
+    if (direction === 'ArrowLeft' || direction === 'ArrowRight') {
+      const slots = [0, 1, 3, 4, 5, 6];
+      const index = slots.indexOf(klondikeFocus.column);
+      const next = Math.max(0, Math.min(slots.length - 1, index + (direction === 'ArrowRight' ? 1 : -1)));
+      klondikeFocus.column = slots[next];
+    } else if (direction === 'ArrowDown') {
+      klondikeFocus.row = 1;
+      klondikeFocus.cardIndex = tableauFaceUpStart(game.tableau[klondikeFocus.column]);
+    }
+  } else if (direction === 'ArrowLeft' || direction === 'ArrowRight') {
+    const next = Math.max(0, Math.min(6, klondikeFocus.column + (direction === 'ArrowRight' ? 1 : -1)));
+    klondikeFocus.column = next;
+    klondikeFocus.cardIndex = tableauFaceUpStart(game.tableau[next]);
+  } else if (direction === 'ArrowDown') {
+    const pile = game.tableau[klondikeFocus.column];
+    if (klondikeFocus.cardIndex < pile.length - 1) klondikeFocus.cardIndex += 1;
+  } else if (direction === 'ArrowUp') {
+    const pile = game.tableau[klondikeFocus.column];
+    const firstFaceUp = tableauFaceUpStart(pile);
+    if (klondikeFocus.cardIndex > firstFaceUp) klondikeFocus.cardIndex -= 1;
+    else {
+      klondikeFocus.row = 0;
+      if (klondikeFocus.column === 2) klondikeFocus.column = 1;
+      klondikeFocus.cardIndex = 0;
+    }
+  }
+  normalizeKlondikeFocus();
+  return before.row !== klondikeFocus.row || before.column !== klondikeFocus.column || before.cardIndex !== klondikeFocus.cardIndex;
+}
+
+function klondikeDestinationAt(row, column) {
+  if (row === 1) return { zone: 'tableau', index: column };
+  if (row === 0 && column >= 3) return { zone: 'foundation', index: column - 3 };
+  return null;
+}
+
+function focusKlondikeBoard() {
+  app.querySelector('[data-focus-zone="klondike-board"]')?.focus({ preventScroll: true });
+}
+
+function activateKlondikePosition(row, column, cardIndex = 0) {
+  if (!game || game.mode !== 'klondike' || game.status !== 'playing') return;
+  row = Number(row);
+  column = Number(column);
+  cardIndex = Number(cardIndex) || 0;
+  klondikeFocus = { row, column, cardIndex };
+  normalizeKlondikeFocus();
+  focusKlondikeBoard();
+  syncKlondikeFocusDom();
+  if (row === 0 && column === 0) {
+    const before = cloneGame(game);
+    const result = drawKlondikeStock(game);
+    if (!result.changed) { announce(t('klondikeNoCardsToDraw'), 'error'); return; }
+    history.push(before);
+    selected = null;
+    saveGame();
+    render();
+    focusKlondikeBoard();
+    announce(result.action === 'draw' ? t('klondikeDrawn', result.count) : t('klondikeRecycled', result.count), 'cardDraw');
+    return;
+  }
+  const source = klondikeSourceAt(row, column, cardIndex);
+  if (!source) { announce(t('klondikeChooseDestination'), 'error'); return; }
+  const availableCards = klondikeSourceCards(game, source);
+  if (!selected) {
+    if (!availableCards.length) { announce(t('klondikePositionLabelUnavailable'), 'error'); return; }
+    selected = source;
+    render();
+    focusKlondikeBoard();
+    announce(`${klondikePositionLabel(row, column, cardIndex)}. ${t('selectDestination')}`, 'cardSelect');
+    return;
+  }
+  if (sameKlondikeSource(selected, source)) {
+    selected = null;
+    render();
+    focusKlondikeBoard();
+    announce(t('selectionCancelled'), 'cardCancel');
+    return;
+  }
+  const destination = klondikeDestinationAt(row, column);
+  if (!destination) {
+    if (availableCards.length) {
+      selected = source;
+      render();
+      focusKlondikeBoard();
+      announce(`${klondikePositionLabel(row, column, cardIndex)}. ${t('selectDestination')}`, 'cardSelect');
+    } else announce(t('klondikeChooseDestination'), 'error');
+    return;
+  }
+  const before = cloneGame(game);
+  if (!moveKlondikeCards(game, selected, destination)) {
+    syncKlondikeFocusDom();
+    announce(t('invalidMove'), 'error');
+    return;
+  }
+  history.push(before);
+  selected = null;
+  klondikeFocus = row === 1
+    ? { row: 1, column, cardIndex: game.tableau[column].length ? game.tableau[column].length - 1 : 0 }
+    : { row: 0, column, cardIndex: 0 };
+  normalizeKlondikeFocus();
+  saveGame();
+  render();
+  focusKlondikeBoard();
+  if (game.status === 'won') {
+    finishSinglePlayerMatch();
+    announce(t('klondikeWonStatus'), 'victory');
+  } else announce(t('moveMade'), 'cardPlay');
+}
+
+function bindKlondikeGrid() {
+  if (screen !== 'game' || game?.mode !== 'klondike') return;
+  const board = app.querySelector('[data-focus-zone="klondike-board"]');
+  board?.addEventListener('keydown', (event) => {
+    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) {
+      event.preventDefault();
+      event.stopPropagation();
+      if (moveKlondikeFocus(event.key)) {
+        syncKlondikeFocusDom();
+        announce(klondikePositionLabel(klondikeFocus.row, klondikeFocus.column, klondikeFocus.cardIndex));
+      }
+      return;
+    }
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      event.stopPropagation();
+      activateKlondikePosition(klondikeFocus.row, klondikeFocus.column, klondikeFocus.cardIndex);
+    }
+  });
+}
+
 function handleArrowKeyOutsideGroup(event) {
   if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) return false;
   const current = document.activeElement;
@@ -1523,11 +1883,12 @@ document.addEventListener('keydown', (event) => {
     announce(t('botTurn', botName(game.activeBotId)));
     return;
   }
-  if (event.key === 'Escape' && (['options', 'credits', 'game-menu', 'new-game', 'bot-match-setup', 'bot-selection', 'mural', 'help'].includes(screen) || screen.startsWith('options-'))) {
+  if (event.key === 'Escape' && (['options', 'credits', 'game-menu', 'new-game', 'klondike-setup', 'bot-match-setup', 'bot-selection', 'mural', 'help'].includes(screen) || screen.startsWith('options-'))) {
     event.preventDefault();
-    const targetScreen = screen.startsWith('options-') ? 'options' : screen === 'new-game' ? 'game-menu' : screen === 'bot-match-setup' ? 'new-game' : screen === 'bot-selection' ? 'bot-match-setup' : screen === 'help' ? previousScreen : 'menu';
+    const targetScreen = screen.startsWith('options-') ? 'options' : screen === 'new-game' ? 'game-menu' : screen === 'klondike-setup' ? 'new-game' : screen === 'bot-match-setup' ? 'new-game' : screen === 'bot-selection' ? 'bot-match-setup' : screen === 'help' ? previousScreen : 'menu';
     screen = targetScreen;
     render();
+    if (targetScreen === 'game' && game?.mode === 'klondike' && game.status === 'won') scheduleFinishedMatchReturn();
     announce(targetScreen === 'menu' ? t('returnedMenu') : targetScreen === 'options' ? t('options') : t('gameMenuTitle'), 'menuBack');
     return;
   }
