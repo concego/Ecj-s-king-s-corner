@@ -90,6 +90,10 @@ h2 { margin-top: 0; }
 
 .scoreboard-mode + .scoreboard-mode { margin-top: 1.75rem; padding-top: 1.25rem; border-top: 1px solid var(--border); }
 .scoreboard-mode h2 { margin-bottom: 0.75rem; font-size: 1.35rem; }
+.table-wrapper { max-width: 100%; overflow-x: auto; }
+.scoreboard-table { width: 100%; border-collapse: collapse; }
+.scoreboard-table th, .scoreboard-table td { padding: 0.55rem 0.75rem; text-align: start; border-bottom: 1px solid var(--border); }
+.scoreboard-table thead th { background: var(--surface-alt); }
 
 .profile-form { display: grid; gap: 0.75rem; margin-bottom: 1.5rem; }
 .profile-field { display: grid; gap: 0.35rem; font-weight: 700; }
