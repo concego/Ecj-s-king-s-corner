@@ -1,23 +1,24 @@
 # ECJ King's Corner
 
-Versão web bilíngue e acessível de **Kings in the Corner**, criada pela Equipe Euconcegojogar.
+Versão web bilíngue e acessível de **Kings in the Corner**, criada pela Equipe Euconcegojogar. O site também inclui uma experiência separada de **Paciência clássica (Klondike)**.
 
 - Teste online: [GitHub Pages](https://concego.github.io/Ecj-s-king-s-corner/)
-- Release atual: [v0.3.0 — pré-release](https://github.com/concego/Ecj-s-king-s-corner/releases/tag/v0.3.0)
+- Release atual: [v0.4.0 — pré-release](https://github.com/concego/Ecj-s-king-s-corner/releases/tag/v0.4.0)
 
-O jogo oferece três modos:
+O **Kings in the Corner** oferece três modos:
 
 - **Treino solo**: pratique sem pontuação.
 - **Record solo**: jogue uma partida pontuada e busque uma das três maiores marcas do Mural local.
 - **Jogar contra bots**: enfrente de um a três adversários controlados pelo jogo. Você começa; não há moedas.
 
-O objetivo das partidas é esvaziar a mão. A pontuação mede o desempenho, mas não determina o vencedor: alguém que perdeu pode terminar com mais pontos que quem venceu.
+O objetivo das partidas de Kings in the Corner é esvaziar a mão. A pontuação mede o desempenho, mas não determina o vencedor: alguém que perdeu pode terminar com mais pontos que quem venceu.
 
 ## Estado atual
 
 - Interface em Português (Brasil) e English.
 - Menu inicial com iniciar jogo, Mural, opções e créditos.
 - Opções organizadas em submenus de Acessibilidade, Sons, Idioma e Perfil do jogador. O perfil permite nome opcional de até 24 caracteres, gênero e avatar de naipe, salvos localmente; o gênero altera apenas a saudação.
+- **Paciência clássica (Klondike)** é uma experiência separada: baralho de 52 cartas, sete colunas, quatro fundações por naipe, compra de uma ou três cartas e reciclagem ilimitada do descarte.
 - **Cachorro** é o bot mais fácil e distraído; **Leão** prioriza jogadas que dão mais pontos; **Raposa** é a mais difícil e busca deixar mais cartas jogáveis em seguida.
 - Os bots só movem pilhas quando isso abre uma jogada com carta. Nas partidas contra bots, o bloqueio é detectado quando o monte acaba e ninguém consegue jogar cartas: é imediato se não houver movimento legal de pilha; caso contrário, ocorre após três rodadas completas sem cartas jogadas.
 - Pontuação unificada nos modos Record solo e contra bots:
@@ -33,13 +34,15 @@ O objetivo das partidas é esvaziar a mão. A pontuação mede o desempenho, mas
 - Mural acessível com os três melhores participantes de cada modo pontuado, ordenados por pontos e com nome, pontuação e resultado, salvo localmente neste dispositivo.
 - Ao terminar qualquer modo, o resultado fica visível por sete segundos e depois a partida retorna ao menu principal.
 - Cartas desenhadas como SVG inline. A interface usa WCAG 2.2 AA como referência e não depende de cor, som, mouse ou arrastar e soltar para transmitir ou executar uma ação.
-- Pilhas movimentadas preservam todas as cartas. Anúncios informam a primeira e a última carta e a quantidade total.
+- Pilhas movimentadas no Kings in the Corner preservam todas as cartas. Anúncios informam a primeira e a última carta e a quantidade total.
 - Sons procedurais originais em WAV, gerados pelo script Python em `tools/generate_sounds.py`.
-- Layout móvel responsivo com headings de navegação, seção atual e seleção rápida entre Tabuleiro, Mão e Controles.
+- No Kings in the Corner, o layout móvel é responsivo e oferece headings de navegação, seção atual e seleção rápida entre Tabuleiro, Mão e Controles.
 
 ## Controles
 
-### Teclado
+### Kings in the Corner
+
+#### Teclado
 
 - `Tab`: alterna entre a mão e o tabuleiro.
 - Setas: navegam pelas cartas da mão e pelas posições do tabuleiro, sem autowrap nas bordas.
@@ -50,12 +53,21 @@ O objetivo das partidas é esvaziar a mão. A pontuação mede o desempenho, mas
 - `S`: consulta a pontuação no Record solo ou na partida contra bots.
 - `N`: passa a vez contra bots. Antes, faça uma jogada válida ou compre uma carta.
 
-### Dispositivo móvel
+#### Dispositivo móvel
 
 - Toque duplo em cartas da mão, no monte e nas pilhas do tabuleiro para interagir.
 - Os botões **Tabuleiro**, **Mão** e **Controles** trocam rapidamente de seção.
 - Em uma partida contra bots, **Controles** oferece passar a vez. Também há opções para voltar ao menu e abrir a ajuda.
 - Desfazer fica desativado durante partidas contra bots.
+
+### Paciência clássica (Klondike)
+
+- Setas: percorrem o monte, o descarte, as quatro fundações, as sete colunas e as cartas viradas para cima dentro de cada coluna. As bordas não fazem autowrap.
+- `Enter`: seleciona uma carta ou sequência, escolhe o destino, compra cartas ou recicla o descarte quando o monte acaba.
+- `Ctrl+Z`: desfaz a última ação enquanto a partida está em andamento.
+- `Escape`: cancela a seleção ou retorna ao menu principal.
+- `H`: abre a ajuda com as regras e os controles do Klondike.
+- `Tab` mantém o comportamento normal do navegador; não alterna zonas do jogo.
 
 ## Executar localmente
 
@@ -80,19 +92,14 @@ O script usa apenas a biblioteca padrão do Python (`wave`, `math` e `struct`). 
 O projeto adota WCAG 2.2 AA como referência técnica. A interface inclui:
 
 - Landmarks e headings semânticos.
-- Foco visível e navegação principal por setas.
-- No jogo, `Tab` alterna exclusivamente entre a mão e o tabuleiro.
-- `Enter` seleciona cartas da mão ou joga no destino focado; no monte, compra uma carta.
-- `H` abre a ajuda; `S` consulta a pontuação; `N` passa a vez contra bots.
-- A pilha focada é anunciada pela posição e pela carta ou pelo intervalo de cartas.
-- As setas param nas bordas do tabuleiro, sem autowrap.
-- `Escape` retorna ao menu e `Ctrl+Z` desfaz nos modos solo.
+- Foco visível e navegação por teclado.
+- No Kings in the Corner, `Tab` alterna exclusivamente entre a mão e o tabuleiro; no Klondike, `Tab` mantém o comportamento padrão do navegador.
 - Alternativas à interação por arrastar e soltar e anúncios de estado com `aria-live`.
 - Textos alternativos para cartas e pilhas.
 - Opções de alto contraste, texto ampliado e redução de movimento.
 - Sons opcionais, nunca usados como único feedback.
 - Cartas diferenciadas por valor, naipe, texto e cor.
-- Layout responsivo. No celular, a navegação rápida alterna entre Tabuleiro, Mão e Controles.
+- Layout responsivo. No Kings in the Corner para celular, a navegação rápida alterna entre Tabuleiro, Mão e Controles.
 
 ## Créditos
 
