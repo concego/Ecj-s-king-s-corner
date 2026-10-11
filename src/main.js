@@ -1,4 +1,4 @@
-import { getText } from './i18n.js?v=bot-score-v2-2';
+import { getText } from './i18n.js?v=mural-per-mode-1';
 import { playSound, setAudioEnabled } from './audio.js';
 import {
   RANK_BY_VALUE,
@@ -340,31 +340,52 @@ function readBotAppearance(id) {
   announce(t(key));
 }
 
+function canonicalScoreMode(mode) {
+  const normalized = String(mode || '').trim().toLocaleLowerCase();
+  if (['record', 'record solo', 'solo record'].includes(normalized)) return 'record';
+  if (['bots', 'jogar contra bots', 'play against bots'].includes(normalized)) return 'bots';
+  return null;
+}
+
 function migrateScoreEntry(entry) {
-  if (Number(entry.scoreVersion) >= MATCH_SCORE_VERSION) return entry;
-  const victory = ['victory', 'Vitória', 'Victory'].includes(entry.result);
-  const defeat = ['defeat', 'Derrota', 'Defeat'].includes(entry.result);
+  const mode = canonicalScoreMode(entry.mode);
   let score = Number(entry.score);
-  if (entry.mode === 'bots') score = victory ? MATCH_WIN_BONUS : -MATCH_LOSS_PENALTY;
-  else if (entry.mode === 'record' && victory) score += MATCH_WIN_BONUS - 100;
-  else if (entry.mode === 'record' && defeat) score += 100 - MATCH_LOSS_PENALTY;
-  return { ...entry, score, scoreVersion: MATCH_SCORE_VERSION };
+  if (Number(entry.scoreVersion || 0) < MATCH_SCORE_VERSION) {
+    const victory = ['victory', 'Vitória', 'Victory'].includes(entry.result);
+    const defeat = ['defeat', 'Derrota', 'Defeat'].includes(entry.result);
+    if (mode === 'bots' && victory) score = MATCH_WIN_BONUS;
+    else if (mode === 'bots' && defeat) score = -MATCH_LOSS_PENALTY;
+    else if (mode === 'record' && victory) score += MATCH_WIN_BONUS - 100;
+    else if (mode === 'record' && defeat) score += 100 - MATCH_LOSS_PENALTY;
+  }
+  return { ...entry, mode: mode || entry.mode, score, scoreVersion: MATCH_SCORE_VERSION };
+}
+
+function topScoreboardEntries(entries) {
+  return ['record', 'bots'].flatMap((mode) => entries
+    .filter((entry) => entry.mode === mode)
+    .sort((a, b) => Number(b.score) - Number(a.score))
+    .slice(0, 3));
 }
 
 function scoreboardEntries() {
   try {
     const entries = JSON.parse(localStorage.getItem(SCOREBOARD_KEY) || '[]');
     if (!Array.isArray(entries)) return [];
-    let migrated = false;
-    const validEntries = entries.filter((entry) => entry && Number.isFinite(Number(entry.score))).map((entry) => {
-      if (Number(entry.scoreVersion) >= MATCH_SCORE_VERSION) return entry;
-      migrated = true;
-      return migrateScoreEntry(entry);
-    });
-    const sortedEntries = validEntries.sort((a, b) => Number(b.score) - Number(a.score)).slice(0, 3);
-    if (migrated) localStorage.setItem(SCOREBOARD_KEY, JSON.stringify(sortedEntries));
+    const validEntries = entries
+      .filter((entry) => entry && Number.isFinite(Number(entry.score)) && canonicalScoreMode(entry.mode))
+      .map(migrateScoreEntry);
+    const sortedEntries = topScoreboardEntries(validEntries);
+    if (JSON.stringify(sortedEntries) !== JSON.stringify(entries)) {
+      localStorage.setItem(SCOREBOARD_KEY, JSON.stringify(sortedEntries));
+    }
     return sortedEntries;
   } catch { return []; }
+}
+
+function storeScoreboardEntry(entry) {
+  const entries = topScoreboardEntries([...scoreboardEntries(), entry]);
+  localStorage.setItem(SCOREBOARD_KEY, JSON.stringify(entries));
 }
 
 function scoreboardModeLabel(mode) {
@@ -381,9 +402,16 @@ function scoreboardResultLabel(result) {
 
 function renderMural() {
   const entries = scoreboardEntries();
-  const rows = entries.map((entry, index) => `<tr><th scope="row">${index + 1}</th><td>${escapeHtml(String(entry.score))}</td><td>${escapeHtml(scoreboardModeLabel(entry.mode))}</td><td>${escapeHtml(scoreboardResultLabel(entry.result))}</td></tr>`).join('');
-  const table = entries.length ? `<div class="table-wrapper"><table><caption>${escapeHtml(t('scoreboardTitle'))}</caption><thead><tr><th scope="col">${escapeHtml(t('scoreboardPosition'))}</th><th scope="col">${escapeHtml(t('scoreboardPoints'))}</th><th scope="col">${escapeHtml(t('scoreboardMode'))}</th><th scope="col">${escapeHtml(t('scoreboardResult'))}</th></tr></thead><tbody>${rows}</tbody></table></div>` : `<p>${escapeHtml(t('scoreboardEmpty'))}</p>`;
-  app.innerHTML = screenShell(t('scoreboardTitle'), t('scoreboardLead'), `<div class="panel">${table}<div class="button-list">${button(t('backToMenu'), 'back-menu', 'class="secondary"')}</div></div>`);
+  const sections = ['record', 'bots'].map((mode) => {
+    const modeLabel = scoreboardModeLabel(mode);
+    const modeEntries = entries.filter((entry) => entry.mode === mode);
+    const rows = modeEntries.map((entry, index) => `<tr><th scope="row">${index + 1}</th><td>${escapeHtml(String(entry.score))}</td><td>${escapeHtml(scoreboardResultLabel(entry.result))}</td></tr>`).join('');
+    const table = modeEntries.length
+      ? `<div class="table-wrapper"><table><caption>${escapeHtml(t('scoreboardTableCaption', modeLabel))}</caption><thead><tr><th scope="col">${escapeHtml(t('scoreboardPosition'))}</th><th scope="col">${escapeHtml(t('scoreboardPoints'))}</th><th scope="col">${escapeHtml(t('scoreboardResult'))}</th></tr></thead><tbody>${rows}</tbody></table></div>`
+      : `<p>${escapeHtml(t('scoreboardModeEmpty', modeLabel))}</p>`;
+    return `<section class="scoreboard-mode" aria-labelledby="scoreboard-mode-${mode}"><h2 id="scoreboard-mode-${mode}">${escapeHtml(modeLabel)}</h2>${table}</section>`;
+  }).join('');
+  app.innerHTML = screenShell(t('scoreboardTitle'), t('scoreboardLead'), `<div class="panel">${sections}<div class="button-list">${button(t('backToMenu'), 'back-menu', 'class="secondary"')}</div></div>`);
 }
 
 function boardPileAt(row, column) {
@@ -692,20 +720,14 @@ function scoreInvalidMove() {
 
 function saveScoreIfNeeded() {
   if (!isRecordGame() || game.scoreSaved || !['won', 'blocked'].includes(game.status)) return;
-  const entries = scoreboardEntries();
-  entries.push({ score: game.score, mode: 'record', result: game.status === 'won' ? 'victory' : 'defeat', scoreVersion: MATCH_SCORE_VERSION, date: new Date().toISOString() });
-  entries.sort((a, b) => Number(b.score) - Number(a.score));
-  localStorage.setItem(SCOREBOARD_KEY, JSON.stringify(entries.slice(0, 3)));
+  storeScoreboardEntry({ score: game.score, mode: 'record', result: game.status === 'won' ? 'victory' : 'defeat', scoreVersion: MATCH_SCORE_VERSION, date: new Date().toISOString() });
   game.scoreSaved = true;
 }
 
 function saveBotScoreIfNeeded() {
   if (game?.mode !== 'bots' || game.botScoreSaved || !['won', 'blocked'].includes(game.status)) return;
   const humanWon = game.status === 'won' && game.winnerId === 'human';
-  const entries = scoreboardEntries();
-  entries.push({ score: game.score, mode: 'bots', result: humanWon ? 'victory' : 'defeat', scoreVersion: MATCH_SCORE_VERSION, date: new Date().toISOString() });
-  entries.sort((a, b) => Number(b.score) - Number(a.score));
-  localStorage.setItem(SCOREBOARD_KEY, JSON.stringify(entries.slice(0, 3)));
+  storeScoreboardEntry({ score: game.score, mode: 'bots', result: humanWon ? 'victory' : 'defeat', scoreVersion: MATCH_SCORE_VERSION, date: new Date().toISOString() });
   game.botScoreSaved = true;
 }
 

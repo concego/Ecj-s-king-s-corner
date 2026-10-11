@@ -88,6 +88,9 @@ h2 { margin-top: 0; }
   box-shadow: var(--shadow);
 }
 
+.scoreboard-mode + .scoreboard-mode { margin-top: 1.75rem; padding-top: 1.25rem; border-top: 1px solid var(--border); }
+.scoreboard-mode h2 { margin-bottom: 0.75rem; font-size: 1.35rem; }
+
 .button-list {
   display: grid;
   gap: 0.8rem;
