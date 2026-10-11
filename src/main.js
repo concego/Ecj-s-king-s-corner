@@ -1,4 +1,4 @@
-import { getText } from './i18n.js?v=klondike-1';
+import { getText } from './i18n.js?v=klondike-2';
 import { playSound, setAudioEnabled } from './audio.js';
 import {
   RANK_BY_VALUE,
