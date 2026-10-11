@@ -91,6 +91,21 @@ h2 { margin-top: 0; }
 .scoreboard-mode + .scoreboard-mode { margin-top: 1.75rem; padding-top: 1.25rem; border-top: 1px solid var(--border); }
 .scoreboard-mode h2 { margin-bottom: 0.75rem; font-size: 1.35rem; }
 
+.profile-form { display: grid; gap: 0.75rem; margin-bottom: 1.5rem; }
+.profile-field { display: grid; gap: 0.35rem; font-weight: 700; }
+.profile-field input, .profile-field select { width: min(100%, 36rem); padding: 0.65rem 0.8rem; border: 2px solid var(--border); border-radius: 0.45rem; color: var(--text); background: var(--surface); }
+.profile-avatar-fieldset { margin: 0.5rem 0; padding: 1rem; border: 1px solid var(--border); border-radius: 0.65rem; }
+.profile-avatar-fieldset p { margin: 0 0 0.8rem; color: var(--muted); }
+.avatar-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr)); gap: 0.75rem; }
+.avatar-option { display: flex; align-items: center; gap: 0.55rem; padding: 0.65rem; border: 1px solid var(--border); border-radius: 0.55rem; background: var(--surface-alt); cursor: pointer; }
+.avatar-option:focus-within { outline: 3px solid var(--focus); outline-offset: 2px; }
+.avatar-option-symbol, .profile-menu-avatar, .profile-match-avatar { display: inline-grid; place-items: center; font-weight: 800; }
+.avatar-option-symbol { min-width: 1.8rem; font-size: 1.5rem; }
+.avatar-option-symbol.hearts, .avatar-option-symbol.diamonds, .profile-menu-avatar.hearts, .profile-menu-avatar.diamonds, .profile-match-avatar.hearts, .profile-match-avatar.diamonds { color: var(--red); }
+.profile-menu-summary { display: flex; align-items: center; gap: 0.65rem; margin: 0; padding: 0.5rem; }
+.profile-menu-avatar { min-width: 1.5rem; font-size: 1.4rem; }
+.profile-match-avatar { min-width: 1.5rem; margin-inline-end: 0.45rem; font-size: 1.15rem; }
+
 .button-list {
   display: grid;
   gap: 0.8rem;

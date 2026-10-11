@@ -1,4 +1,4 @@
-import { getText } from './i18n.js?v=mural-per-mode-1';
+import { getText } from './i18n.js?v=options-profile-1';
 import { playSound, setAudioEnabled } from './audio.js';
 import {
   RANK_BY_VALUE,
@@ -27,6 +27,14 @@ const BOT_STALL_ROUND_LIMIT = 3;
 const MATCH_SCORE_VERSION = 2;
 const MATCH_WIN_BONUS = 10;
 const MATCH_LOSS_PENALTY = 5;
+const PROFILE_AVATARS = [
+  { id: 'hearts', symbol: '♥' },
+  { id: 'diamonds', symbol: '♦' },
+  { id: 'clubs', symbol: '♣' },
+  { id: 'spades', symbol: '♠' },
+];
+const PROFILE_NAME_MAX_LENGTH = 24;
+const PROFILE_GENDERS = ['unspecified', 'feminine', 'masculine', 'nonbinary', 'other'];
 
 let locale = localStorage.getItem('ecj-kings-corner-locale');
 let settings = loadSettings();
@@ -50,17 +58,30 @@ function loadSelectedBots() {
   }
 }
 
+function defaultProfile() {
+  return { displayName: '', gender: 'unspecified', avatar: 'hearts' };
+}
+
+function defaultSettings() {
+  return { soundEnabled: true, highContrast: false, largeText: false, reducedMotion: false, profile: defaultProfile() };
+}
+
 function loadSettings() {
   try {
+    const saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}') || {};
+    const savedProfile = saved.profile && typeof saved.profile === 'object' ? saved.profile : {};
+    const profile = { ...defaultProfile(), ...savedProfile };
     return {
-      soundEnabled: true,
-      highContrast: false,
-      largeText: false,
-      reducedMotion: false,
-      ...JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}'),
+      ...defaultSettings(),
+      ...saved,
+      profile: {
+        displayName: String(profile.displayName || '').trim().slice(0, PROFILE_NAME_MAX_LENGTH),
+        gender: PROFILE_GENDERS.includes(profile.gender) ? profile.gender : 'unspecified',
+        avatar: PROFILE_AVATARS.some((item) => item.id === profile.avatar) ? profile.avatar : 'hearts',
+      },
     };
   } catch {
-    return { soundEnabled: true, highContrast: false, largeText: false, reducedMotion: false };
+    return defaultSettings();
   }
 }
 
@@ -145,7 +166,7 @@ function botScoreStandings() {
       : t('botScoreDefeat');
   };
   return [
-    { id: 'human', name: t('you'), score: Number(game.score) || 0, result: resultFor('human') },
+    { id: 'human', name: settings.profile.displayName.trim() || t('you'), avatar: settings.profile.avatar, avatarLabel: profileAvatarLabel(settings.profile.avatar), score: Number(game.score) || 0, result: resultFor('human') },
     ...game.botPlayers.map((bot) => ({ id: bot.id, name: botName(bot.id), score: Number(bot.score) || 0, result: resultFor(bot.id) })),
   ].sort((a, b) => b.score - a.score);
 }
@@ -153,12 +174,15 @@ function botScoreStandings() {
 function renderBotScores() {
   const standings = botScoreStandings();
   if (!standings.length) return '';
-  const rows = standings.map((player, index) => `<li>${escapeHtml(t('botScoreLine', index + 1, player.name, player.score, player.result))}</li>`).join('');
+  const rows = standings.map((player, index) => {
+    const avatar = player.id === 'human' ? `<span class="profile-match-avatar ${player.avatar}" aria-hidden="true">${profileAvatarSymbol(player.avatar)}</span>` : '';
+    return `<li>${avatar}${escapeHtml(t('botScoreLine', index + 1, player.name, player.score, player.result, player.avatarLabel || ''))}</li>`;
+  }).join('');
   return `<section class="bot-scoreboard" aria-labelledby="bot-scoreboard-heading"><h2 id="bot-scoreboard-heading">${escapeHtml(t('botScoreHeading', game.status))}</h2><ol>${rows}</ol></section>`;
 }
 
 function botScoreLines() {
-  return botScoreStandings().map((player, index) => t('botScoreLine', index + 1, player.name, player.score, player.result));
+  return botScoreStandings().map((player, index) => t('botScoreLine', index + 1, player.name, player.score, player.result, player.avatarLabel || ''));
 }
 
 function botScoreAnnouncement() {
@@ -215,7 +239,10 @@ function renderLanguage() {
 }
 
 function renderMenu() {
+  const hasProfile = settings.profile.displayName || settings.profile.gender !== 'unspecified' || settings.profile.avatar !== 'hearts';
+  const profileSummary = hasProfile ? `<p class="profile-menu-summary"><span class="profile-menu-avatar ${settings.profile.avatar}" aria-hidden="true">${profileAvatarSymbol()}</span>${escapeHtml(t('profileWelcome', settings.profile.displayName, settings.profile.gender))}</p>` : '';
   app.innerHTML = screenShell(t('menuTitle'), t('menuLead'), `<div class="panel button-list" aria-label="${escapeHtml(t('menuTitle'))}">
+    ${profileSummary}
     ${button(t('startGame'), 'menu-start')}
     ${button(t('mural'), 'menu-mural', 'class="secondary"')}
     ${button(t('help'), 'menu-help', 'class="secondary"')}
@@ -231,17 +258,84 @@ function toggleButton(key, label) {
   return button(state, `toggle-${key}`, `class="secondary" aria-pressed="${on}" aria-label="${escapeHtml(`${label}: ${state}`)}"`);
 }
 
+function settingRow(title, description, control) {
+  return `<div class="setting"><div><strong>${escapeHtml(title)}</strong><small>${escapeHtml(description)}</small></div>${control}</div>`;
+}
+
+function optionsBackButton() {
+  return `<div class="button-list">${button(t('backToOptions'), 'back-options', 'class="secondary"')}</div>`;
+}
+
 function renderOptions() {
-  const setting = (title, description, control) => `<div class="setting"><div><strong>${escapeHtml(title)}</strong><small>${escapeHtml(description)}</small></div>${control}</div>`;
-  app.innerHTML = screenShell(t('options'), t('accessibilityTitle'), `<div class="panel">
+  const optionRow = (title, description, action) => settingRow(title, description, button(t('openOptionMenu', title), action, 'class="secondary"'));
+  app.innerHTML = screenShell(t('options'), t('optionsLead'), `<div class="panel">
     <div class="setting-list">
-      ${setting(t('language'), locale === 'pt-BR' ? 'Português (Brasil)' : 'English', `<div class="inline-actions">${button('Português (Brasil)', 'choose-language', 'data-locale="pt-BR" class="secondary"')}${button('English', 'choose-language', 'data-locale="en" class="secondary"')}</div>`)}
-      ${setting(t('sounds'), t('soundsDescription'), toggleButton('soundEnabled', t('sounds')))}
-      ${setting(t('highContrast'), t('highContrastDescription'), toggleButton('highContrast', t('highContrast')))}
-      ${setting(t('largeText'), t('largeTextDescription'), toggleButton('largeText', t('largeText')))}
-      ${setting(t('reducedMotion'), t('reducedMotionDescription'), toggleButton('reducedMotion', t('reducedMotion')))}
+      ${optionRow(t('accessibilityTitle'), t('accessibilityMenuDescription'), 'open-options-accessibility')}
+      ${optionRow(t('sounds'), t('soundsMenuDescription'), 'open-options-sounds')}
+      ${optionRow(t('language'), t('languageMenuDescription'), 'open-options-language')}
+      ${optionRow(t('profileTitle'), t('profileMenuDescription'), 'open-options-profile')}
     </div>
     <div class="button-list">${button(t('backMainMenu'), 'back-menu', 'class="secondary"')}</div>
+  </div>`);
+}
+
+function renderAccessibilityOptions() {
+  app.innerHTML = screenShell(t('accessibilityTitle'), t('accessibilityLead'), `<div class="panel">
+    <div class="setting-list">
+      ${settingRow(t('highContrast'), t('highContrastDescription'), toggleButton('highContrast', t('highContrast')))}
+      ${settingRow(t('largeText'), t('largeTextDescription'), toggleButton('largeText', t('largeText')))}
+      ${settingRow(t('reducedMotion'), t('reducedMotionDescription'), toggleButton('reducedMotion', t('reducedMotion')))}
+    </div>
+    ${optionsBackButton()}
+  </div>`);
+}
+
+function renderSoundOptions() {
+  app.innerHTML = screenShell(t('sounds'), t('soundsMenuDescription'), `<div class="panel">
+    <div class="setting-list">${settingRow(t('sounds'), t('soundsDescription'), toggleButton('soundEnabled', t('sounds')))}</div>
+    ${optionsBackButton()}
+  </div>`);
+}
+
+function renderLanguageOptions() {
+  app.innerHTML = screenShell(t('language'), t('languageMenuDescription'), `<div class="panel">
+    <div class="button-list">
+      ${button('Português (Brasil)', 'choose-language', `class="${locale === 'pt-BR' ? '' : 'secondary'}" aria-pressed="${locale === 'pt-BR'}" data-locale="pt-BR"`)}
+      ${button('English', 'choose-language', `class="${locale === 'en' ? '' : 'secondary'}" aria-pressed="${locale === 'en'}" data-locale="en"`)}
+    </div>
+    ${optionsBackButton()}
+  </div>`);
+}
+
+function profileAvatarLabel(id) {
+  return t(`profileAvatar${id[0].toUpperCase()}${id.slice(1)}`);
+}
+
+function profileAvatarSymbol(id = settings.profile.avatar) {
+  return PROFILE_AVATARS.find((item) => item.id === id)?.symbol || PROFILE_AVATARS[0].symbol;
+}
+
+function profileGenderLabel(gender) {
+  return t(`profileGender${gender[0].toUpperCase()}${gender.slice(1)}`);
+}
+
+function renderProfileOptions() {
+  const avatarChoices = PROFILE_AVATARS.map((avatar) => `<label class="avatar-option">
+    <input type="radio" name="profileAvatar" value="${avatar.id}" ${settings.profile.avatar === avatar.id ? 'checked' : ''}>
+    <span class="avatar-option-symbol ${avatar.id}" aria-hidden="true">${avatar.symbol}</span>
+    <span>${escapeHtml(profileAvatarLabel(avatar.id))}</span>
+  </label>`).join('');
+  app.innerHTML = screenShell(t('profileTitle'), t('profileLead'), `<div class="panel">
+    <form id="profile-form" class="profile-form">
+      <label class="profile-field"><span>${escapeHtml(t('profileDisplayName'))}</span><input type="text" name="profileName" maxlength="${PROFILE_NAME_MAX_LENGTH}" autocomplete="nickname" value="${escapeHtml(settings.profile.displayName)}" aria-describedby="profile-name-help"></label>
+      <small id="profile-name-help">${escapeHtml(t('profileNameDescription'))}</small>
+      <label class="profile-field"><span>${escapeHtml(t('profileGender'))}</span><select name="profileGender" aria-describedby="profile-gender-help">${PROFILE_GENDERS.map((gender) => `<option value="${gender}" ${settings.profile.gender === gender ? 'selected' : ''}>${escapeHtml(profileGenderLabel(gender))}</option>`).join('')}</select></label>
+      <small id="profile-gender-help">${escapeHtml(t('profileGenderDescription'))}</small>
+      <fieldset class="profile-avatar-fieldset"><legend>${escapeHtml(t('profileAvatar'))}</legend><p>${escapeHtml(t('profileAvatarDescription'))}</p><div class="avatar-grid">${avatarChoices}</div></fieldset>
+      <p class="legend">${escapeHtml(t('profileLocalStorage'))}</p>
+      <button type="submit">${escapeHtml(t('saveProfile'))}</button>
+    </form>
+    ${optionsBackButton()}
   </div>`);
 }
 
@@ -668,6 +762,10 @@ function render() {
   if (screen === 'language') renderLanguage();
   if (screen === 'menu') renderMenu();
   if (screen === 'options') renderOptions();
+  if (screen === 'options-accessibility') renderAccessibilityOptions();
+  if (screen === 'options-sounds') renderSoundOptions();
+  if (screen === 'options-language') renderLanguageOptions();
+  if (screen === 'options-profile') renderProfileOptions();
   if (screen === 'credits') renderCredits();
   if (screen === 'help') renderHelp();
   if (screen === 'game-menu') renderGameMenu();
@@ -1192,6 +1290,20 @@ function chooseLanguage(value) {
   render();
 }
 
+function saveProfile(event) {
+  event.preventDefault();
+  const formData = new FormData(event.currentTarget);
+  const displayName = String(formData.get('profileName') || '').trim().slice(0, PROFILE_NAME_MAX_LENGTH);
+  const requestedGender = String(formData.get('profileGender') || 'unspecified');
+  const gender = PROFILE_GENDERS.includes(requestedGender) ? requestedGender : 'unspecified';
+  const requestedAvatar = String(formData.get('profileAvatar') || 'hearts');
+  const avatar = PROFILE_AVATARS.some((item) => item.id === requestedAvatar) ? requestedAvatar : 'hearts';
+  settings = { ...settings, profile: { ...settings.profile, displayName, gender, avatar } };
+  saveSettings();
+  announce(t('profileSaved'), 'confirm');
+  render();
+}
+
 function toggleSetting(key) {
   settings[key] = !settings[key];
   saveSettings();
@@ -1211,6 +1323,10 @@ function bindActions() {
       if (action === 'menu-start') { screen = 'game-menu'; playSound('menuOpen'); render(); return; }
       if (action === 'menu-mural') { screen = 'mural'; playSound('menuOpen'); render(); return; }
       if (action === 'menu-options') { screen = 'options'; playSound('menuOpen'); render(); return; }
+      if (action === 'open-options-accessibility') { screen = 'options-accessibility'; playSound('menuOpen'); render(); return; }
+      if (action === 'open-options-sounds') { screen = 'options-sounds'; playSound('menuOpen'); render(); return; }
+      if (action === 'open-options-language') { screen = 'options-language'; playSound('menuOpen'); render(); return; }
+      if (action === 'open-options-profile') { screen = 'options-profile'; playSound('menuOpen'); render(); return; }
       if (action === 'menu-help') { previousScreen = screen; screen = 'help'; playSound('menuOpen'); render(); return; }
       if (action === 'mobile-section') {
         mobileSection = element.dataset.section;
@@ -1220,6 +1336,7 @@ function bindActions() {
       }
       if (action === 'menu-credits') { screen = 'credits'; playSound('menuOpen'); render(); return; }
       if (action === 'back-help') { screen = previousScreen; playSound('menuBack'); render(); return; }
+      if (action === 'back-options') { screen = 'options'; playSound('menuBack'); render(); return; }
       if (action === 'back-menu') { cancelPendingBotMenuReturn(); screen = 'menu'; selected = null; playSound('menuBack'); render(); return; }
       if (action === 'back-game-menu') { screen = 'game-menu'; selected = null; playSound('menuBack'); render(); return; }
       if (action === 'continue-game' && game) { screen = 'game'; selected = null; playSound('menuOpen'); render(); if (game.mode === 'bots' && game.activeTurn > 0) runBotTurn(game.activeTurn, 0); return; }
@@ -1251,6 +1368,7 @@ function bindActions() {
     });
     element.addEventListener('focus', () => playSound('menuFocus'));
   });
+  app.querySelector('#profile-form')?.addEventListener('submit', saveProfile);
 }
 
 function isMobileLayout() {
@@ -1365,12 +1483,12 @@ document.addEventListener('keydown', (event) => {
     announce(t('botTurn', botName(game.activeBotId)));
     return;
   }
-  if (event.key === 'Escape' && ['options', 'credits', 'game-menu', 'new-game', 'bot-match-setup', 'bot-selection', 'mural', 'help'].includes(screen)) {
+  if (event.key === 'Escape' && (['options', 'credits', 'game-menu', 'new-game', 'bot-match-setup', 'bot-selection', 'mural', 'help'].includes(screen) || screen.startsWith('options-'))) {
     event.preventDefault();
-    const targetScreen = screen === 'new-game' ? 'game-menu' : screen === 'bot-match-setup' ? 'new-game' : screen === 'bot-selection' ? 'bot-match-setup' : screen === 'help' ? previousScreen : 'menu';
+    const targetScreen = screen.startsWith('options-') ? 'options' : screen === 'new-game' ? 'game-menu' : screen === 'bot-match-setup' ? 'new-game' : screen === 'bot-selection' ? 'bot-match-setup' : screen === 'help' ? previousScreen : 'menu';
     screen = targetScreen;
     render();
-    announce(targetScreen === 'menu' ? t('returnedMenu') : t('gameMenuTitle'), 'menuBack');
+    announce(targetScreen === 'menu' ? t('returnedMenu') : targetScreen === 'options' ? t('options') : t('gameMenuTitle'), 'menuBack');
     return;
   }
   if (!event.ctrlKey && !event.altKey && !event.metaKey && event.key.toLowerCase() === 'h') {
